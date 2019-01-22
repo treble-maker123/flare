@@ -13,3 +13,4 @@ scripts/config
 scripts/run.sh
 src/.engine.py.swp 
 test_data/
+*.xml
