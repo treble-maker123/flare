@@ -1,4 +1,3 @@
-data/
 grant_images/
 slice_data/
 .ipynb_checkpoints/
@@ -13,4 +12,5 @@ scripts/config
 scripts/run.sh
 src/.engine.py.swp 
 test_data/
+data/
 *.xml
