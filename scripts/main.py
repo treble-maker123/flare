@@ -31,13 +31,13 @@ def main(config_file):
     # Load data and get image paths
     t = time()
     path_load = config['data'].pop('path_load')
-    #if os.path.exists(path_load):
-    #    with open(path_load, 'rb') as f:
-    #        data = pickle.load(f)
-    #else:
-    data = datagen.get_data_aibl(**config['data'])
-    with open(path_load, 'wb') as f:
-        pickle.dump(data, f)
+    if os.path.exists(path_load):
+        with open(path_load, 'rb') as f:
+            data = pickle.load(f)
+    else:
+        data = datagen.get_data_aibl(**config['data'])
+        with open(path_load, 'wb') as f:
+            pickle.dump(data, f)
     print('Data Loaded : ', time()-t)
     print('Basic Data Stats:')
     print('Number of patients = ', len(data))

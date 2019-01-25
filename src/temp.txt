@@ -1,0 +1,28 @@
+def get_data_aibl(path_meta, path_images, path_feat, min_visits=1):
+    id_list = next(os.walk(path_meta))[1]
+    data_feat = pd.read_csv(path_feat, dtype = object)
+    foo_meta = glob(path_meta + '/*.xml')
+    
+    for pid in id_list:
+        p_paths = []
+        pmeta = glob(path_meta + '/' + pid + '/**/*.xml',recursive=True)
+        print(pmeta)
+        for f_meta in pmeta:
+            temp_meta = f_meta.replace(path_meta,'')
+            p_splitted = temp_meta.split('/')
+            f_name = 'AIBL'+ '_' + pid + '_MR_MPRAGE_ADNI_confirmed_' + p_splitted[-2] + '.nii'
+            f_path = '/'.join(p_splitted[:-1]) + '/' + f_name
+            for zip_idx in range(1,11):
+                f_img = path_images + '/' + str(zip_idx) + '/AIBL' + f_path
+                if(os.path.exists(f_img)):
+                    temp = f_name[:-4]
+                    for item in foo_meta:
+                        t = item.split('/')[-1] #get actual xml filename
+                        tt = t.split('_')[:-1]
+                        temp_t = temp.split('_')
+                        if(tt[1] == temp_t[1] and tt[-1] == temp_t[-1]):
+                            f_meta = item
+                            break
+                    p_paths.append((f_meta,f_img))
+        if len(p_paths) >= min_visits:
+            data[pid] = Data(pid, p_paths, data_feat[data_feat.PTID==pid])

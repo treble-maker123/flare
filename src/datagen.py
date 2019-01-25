@@ -63,7 +63,7 @@ class Data:
                 # Store evaluation metrics with viscode as key
                 self.metrics[viscode] = self.get_metrics(feat_viscode)
 
-                # Store covariate values 
+                # Store covariate values
                 if flag_get_covariates==0:
                     self.covariates = self.get_covariates(feat_viscode)
                     flag_get_covariates = 1

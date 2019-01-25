@@ -26,7 +26,7 @@ class Data:
     def __init__(self, pid, paths, feat):
         self.pid = pid
         self.num_visits = 0
-        self.max_visits = 5
+        self.max_visits = 4
         self.which_visits = []
 
         self.path_imgs = {}
@@ -44,8 +44,9 @@ class Data:
         for fmeta, fimg in paths:
             # Extract visit code from meta file         
             viscode = self.get_viscode(fmeta)           
-            if viscode not in temp_viscodes:
+            if viscode not in temp_viscodes and not feat.loc[(feat.PTID == pid) & (feat.VISCODE==viscode)].empty:
                 temp_viscodes.append(viscode)
+
                 self.num_visits += 1
                 #append viscode to list of visits
                 temp_visits.append(viscode)
@@ -97,7 +98,6 @@ class Data:
             checks if the first len(t)-1 tuples are consecutive,
             unless len(t) = 2, then t[0] and t[1] must be consecutive.
             """                
-            A
             for i in range(len(t)-2):
                 if t[i+1]-t[i] > 1:
                     return False
@@ -122,11 +122,9 @@ class Data:
         """
         which_visits = []
         dict_visit2int = {'bl':0,
-              'm06':1,
-              'm12':2,
-              'm18':3,
-              'm24':4,
-              'm36':5,
+              'm18':1,
+              'm36':2,
+              'm54':3,
               'none':-1}
         for key in visits:
             which_visits.append(dict_visit2int[key])
@@ -135,6 +133,10 @@ class Data:
         return sorted(which_visits)         
     
     def get_cogtest(self, feat):
+        print(feat['MMSE'])
+        print(feat['PTID'])
+        print(feat['VISCODE'])
+        #print(feat['MMSE'].values[0].shape)
         return list(np.nan_to_num([
                 float(feat['MMSE'].values[0])
                 ]))
@@ -173,17 +175,17 @@ class Data:
 #                   'Dementia':7,
 #                   'NL to Dementia':8}
         dx = feat['DX'].values[0]
+
         if dx!=dx:
             dx = 'NL'
-        return [dict_dx[dx],
-                float(feat['MMSE'].values[0]),
-                ]
+        return [int(dx)-1,
+                float(feat['MMSE'].values[0])]
 
     def get_covariates(self, feat):
         dict_gender = {'male':0, 'female':1}
         return [
                 float(feat['AGE'].values[0]),
-                dict_gender[feat['PTGENDER'].values[0].lower()],
+                feat['PTGENDER'].values[0].lower(),
                 #  feat['PTEDUCAT'].values[0],
                 #  feat['PTETHCAT'].values[0],
                 #  feat['PTRACCAT'].values[0],
@@ -191,58 +193,68 @@ class Data:
                 ]
 
     def get_viscode(self, fmeta):
-        dict_visit = {'ADNI Screening':'bl',
-              'ADNI1/GO Month 6':'m06',
-              'ADNI1/GO Month 12': 'm12',
-              'ADNI1/GO Month 18' : 'm18',
-              'ADNI1/GO Month 24': 'm24',
-              'ADNI1/GO Month 36': 'm36',
-             'No Visit Defined': 'none'}
+        dict_visit = {'Baseline':'bl',
+              '18 Month follow-up':'m18',
+              '36 Month follow-up': 'm36',
+              '54 Month follow-up' : 'm54'}
         tree = ET.parse(fmeta)
+        print(fmeta)
         root = tree.getroot()
         vals = [x for x in root.iter('visit')]
         key = [x for x in vals[0].iter('visitIdentifier')][0].text
         return dict_visit[key]
 
-def get_data_aibl(path_meta, path_images, path_feat, min_visits=1): 
-    data_feat = pd.read_csv(path_feat, dtype=object)
-    
-    id_list = next(os.walk(path_meta))[1]
-
+def get_data_aibl(path_meta, path_images, path_feat, min_visits=1):
     data = {}
-    # Iterate over patient folders
+    id_list = next(os.walk(path_meta))[1]
+    data_feat = pd.read_csv(path_feat, dtype = object)
+    foo_meta = glob(path_meta + '/*.xml')
+    
     for pid in id_list:
-        # List of identifier files of patient
-        pmeta = glob(os.path.join(path_meta, \
-                pid+'/**/*.xml'), recursive=True)
         p_paths = []
-        # Iterate over identifier files
-        for f in pmeta:
-            # Get image path
-            for idx_imgdir in range(1, 11):        
-                print(os.path.dirname(f))
-                print(os.path.dirname(f).\
-                        replace(path_meta, path_images+\
-                        '/'+str(idx_imgdir)+'/AIBL')+'/*.dcm')
-                f_img = glob(os.path.dirname(f).\
-                        replace(path_meta, path_images+\
-                        '/'+str(idx_imgdir)+'/AIBL')+'/*.dcm')
-                if len(f_img)==1:
-                    break
-            if len(f_img)==1:
-                f_img = f_img[0]
-                # Get metadata path
-                f_basename = os.path.basename(f_img)[:-3]
-                f_meta = f_basename.split('_')
-                idx_mr, idx_br = f_meta.index('MR'), f_meta.index('Br')
-                f_meta = f_meta[:idx_mr] + \
-                        f_meta[idx_mr+1:idx_br] + f_meta[idx_br+2:]
-                f_meta = os.path.join(path_meta, '_'.join(f_meta)+'xml')
-                p_paths.append((f_meta, f_img))
-        # Get all data for the pid
-        if len(p_paths)>=min_visits:
+        pmeta = glob(path_meta + '/' + pid + '/**/*.xml',recursive=True)
+        for temp_meta in pmeta:
+            temp_meta = temp_meta.replace(path_meta,'')
+            p_splitted = temp_meta.split('/')
+            f_name = 'AIBL'+ '_' + pid + '_MR_MPRAGE_ADNI_confirmed_' + p_splitted[-2] + '.nii'
+            f_path = '/'.join(p_splitted[:-1]) + '/' + f_name
+            for zip_idx in range(1,11):
+                f_img = path_images + '/' + str(zip_idx) + '/AIBL' + f_path
+                if(os.path.exists(f_img)):
+                    temp = f_name[:-4]
+                    for item in foo_meta:
+                        t = item.split('/')[-1] #get actual xml filename
+                        tt = t.split('_')[:-1]
+                        temp_t = temp.split('_')
+                        if(tt[1] == temp_t[1] and tt[-1] == temp_t[-1]):
+                            f_meta = item
+                            break
+                    p_paths.append((f_meta,f_img))
+        if len(p_paths) >= min_visits:
             data[pid] = Data(pid, p_paths, data_feat[data_feat.PTID==pid])
-    return data 
+    return data
+
+#def get_data_aibl(path_meta, path_images, path_feat, min_visits=1):
+#    data = {}
+#    id_list = next(os.walk(path_meta))[1]
+#    data_feat = pd.read_csv(path_feat, dtype = object)
+#    
+#    for pid in id_list:
+#        p_paths = []
+#        glob_search = path_meta + '/' + pid + '/**/*.xml'
+#        pmeta = glob(glob_search,recursive=True)
+#        for f_meta in pmeta:
+#            temp_meta = f_meta.replace(path_meta,'')
+#            p_splitted = temp_meta.split('/')
+#            f_name = 'AIBL'+ '_' + pid + '_MR_MPRAGE_ADNI_confirmed_' + p_splitted[-2] + '.nii'
+#            f_name = '/'.join(p_splitted[:-1]) + '/' + f_name
+#            for zip_idx in range(1,11):
+#                f_img = path_images + '/' + str(zip_idx) + '/AIBL' + f_name
+#                if(os.path.exists(f_img)):
+#                    p_paths.append((f_meta,f_img))
+#        if len(p_paths) >= min_visits:
+#            data[pid] = Data(pid, p_paths, data_feat[data_feat.PTID==pid])
+#    return data
 
 def get_datagen(data, data_split, batch_size, num_visits, feat_flag):
     # Get Train and Test PIDs
@@ -271,11 +283,9 @@ def one_batch_one_patient(p,sample,feat_flag):
         'ret': a generator of Data_Batch objects which has T entries.
     """
     dict_int2visit = {0:'bl', #reverse dictionary
-                    1:'m06',
-                    2:'m12',
-                    3:'m18',
-                    4:'m24',
-                    5:'m36',
+                    1:'m18',
+                    2:'m36',
+                    3:'m54',
                 -1:'none'}
     batch = []
     if isinstance(sample, tuple)==False:
@@ -339,10 +349,11 @@ def get_Batch(patients, B, num_visits, feat_flag):
         'ret': a BxT matrix of Data_Batch objects 
     """
     while 1:
-        n_t = np.random.randint(1, 5) if num_visits==-1 else num_visits
+        n_t = np.random.randint(1, 3) if num_visits==-1 else num_visits
         T = n_t+1 #number of visits in traj_{n_t}. 
         
         ret = np.empty((B,T),dtype=object)
+
         #  dict_int2visit = {0:'bl', #reverse dictionary
         #                1:'m06',
         #                2:'m12',
@@ -353,7 +364,7 @@ def get_Batch(patients, B, num_visits, feat_flag):
         
         selections = []
         patient_idx = []
-        
+        print(patients) 
         for idx, p in enumerate(patients):
             item = p.trajectories[n_t-1] if n_t !=0 else p.which_visits
             #Check if trajectory exists. If it doesn't, don't concat it.
@@ -398,10 +409,11 @@ def get_img_batch(x, as_tensor=False, on_gpu=False):
             for t in range(T-1):
                 feat[b, t, :] = x[b, t].img_features
     elif img_type == 'cnn3d':
-        feat = np.zeros((B, T-1, 256, 256, 150))
+        feat = np.zeros((B, T-1, 160, 240, 256))
         for b in range(B):
             for t in range(T-1):                
-                feat[b, t, :] = utils.load_img(x[b, t].img_path[:-3]+'npz')
+                path = x[b,t].img_path[:-3] + 'nii'
+                feat[b, t, :] = utils.load_img(path).get_fdata()
     if as_tensor==True:
         feat = torch.from_numpy(feat).float()
     if on_gpu:
