@@ -8,7 +8,7 @@ import functools
 import numpy as np
 
 class UnetConv3(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,1), padding_size=(1,1,0), init_stride=(1,1,1)):
+    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,3), padding_size=(1,1,0), init_stride=(1,1,1)):
         super(UnetConv3, self).__init__()
 
         if is_batchnorm:

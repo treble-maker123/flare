@@ -3,11 +3,14 @@ import nibabel as nib
 import numpy as np
 import torch
 import pickle
+import skimage.transform
 
 def load_img(path, view='axial'):
     if(path[-3:] == 'nii'):
-        return nib.load(path)
-    else:
+        image = nib.load(path).get_fdata()
+        image = skimage.transform.resize(image, (40,120,128))
+        return image
+    elif(path[-3:] == 'npz'):
         try:
             with open(path,'rb') as f:
                 image = pickle.load(f)

@@ -14,16 +14,20 @@ import matplotlib.pyplot as plt
 #  torch.backends.cudnn.enabled = False
 
 class Model(nn.Module):
-    def __init__(self, class_wt, module_image, module_temporal, \
+    def __init__(self, on_gpu, class_wt, module_image, module_temporal, \
             module_forecast, module_task, fusion):
         super(Model, self).__init__()
         # Model names file
         with open('../src/models/models.yaml') as f:
             model_dict = yaml.load(f)
         self.fusion = fusion
+        self.on_gpu = on_gpu
 
         # Load model: image architecture
         self.model_image_name = module_image.pop('name')
+        if(self.model_image_name[:-1] != 'tadpole'):
+            module_image.pop('num_input')
+            module_image.pop('num_output')
         self.model_image = eval(model_dict[self.model_image_name])(**module_image)
         
         if self.fusion == 'concat_feature':
@@ -46,24 +50,29 @@ class Model(nn.Module):
         self.model_task = eval(model_dict[model_task_name])(**module_task)
 
         # Class weights for loss
-        self.class_wt = torch.tensor(class_wt).float()
+        if(self.on_gpu):
+            self.class_wt = torch.tensor(class_wt).float().cuda()
+        else:
+            self.class_wt = torch.tensor(class_wt).float()
 
     def loss(self, y_pred, y):
+        if(self.on_gpu):
+            y = y.cuda()
         return nn.CrossEntropyLoss(weight=self.class_wt)(y_pred, y)
  
-    def forward(self, data_batch, on_gpu=False):
+    def forward(self, data_batch):
         (B, T) = data_batch.shape
-        T = 2 if T == 1 else T
+        #T = 2 if T == 1 else T
         # STEP 2: EXTRACT INPUT VALUES -------------------------------------
         # Get time data : x_time_data = (B, T)
-        x_time_data = datagen.get_time_batch(data_batch, as_tensor=True, on_gpu=on_gpu)
+        x_time_data = datagen.get_time_batch(data_batch, as_tensor=True, on_gpu=self.on_gpu)
         # Get image data : x_img_data: (B, T-1, Di)
-        x_img_data = datagen.get_img_batch(data_batch, as_tensor=True, on_gpu=on_gpu) 
+        x_img_data = datagen.get_img_batch(data_batch, as_tensor=True, on_gpu=self.on_gpu) 
 
         # Get longitudinal data : x_long_data: (B, T-1, Dl)  
-        x_long_data = datagen.get_long_batch(data_batch, as_tensor=True, on_gpu=on_gpu)
+        x_long_data = datagen.get_long_batch(data_batch, as_tensor=True, on_gpu=self.on_gpu)
         # Get covariate data : x_cov_data: (B, T-1, Dc)
-        x_cov_data = datagen.get_cov_batch(data_batch, as_tensor=True, on_gpu=on_gpu)
+        x_cov_data = datagen.get_cov_batch(data_batch, as_tensor=True, on_gpu=self.on_gpu)
         #  print(torch.sum(x_img_data),torch.sum(x_long_data),torch.sum(x_cov_data))
 
         #  print('Input data dims: Time={}, Image={}, Long={}, Cov={}'.\
@@ -75,14 +84,16 @@ class Model(nn.Module):
         x_img_data = x_img_data.view((B*(T), 1) + x_img_data.shape[2:])
         if len(x_img_data.shape) == 5:
             x_img_data = x_img_data.permute(0,1,4,2,3)
-        if self.fusion == 'concat_feature':
+            print('Image shape after permute: ', x_img_data.shape)
+        if self.fusion == 'concat_feature' or self.fusion == 'img_only':
+            #x_img_data = x_img_data.squeeze(1)
             x_img_feat = self.model_image(x_img_data)
             x_img_feat = x_img_feat.view(B, T, -1)
         elif self.fusion == 'concat_input':
             x_img_data = x_img_data.view(B, T ,-1) 
             x_img_data = torch.cat((x_img_data, x_long_data, x_cov_data), -1)
             x_img_data = x_img_data.view(B*T,-1)
-            #  print('Image shape after permute: ', x_img_data.shape)
+
             x_img_feat = self.model_image(x_img_data)
             x_img_feat = x_img_feat.view(B, T, -1)
         #  print(x_img_feat.size())
@@ -113,31 +124,39 @@ class Model(nn.Module):
         # x_feat: (B, T-1, F_i+F_l+F_c) = (B, T-1, F)
         if self.fusion == 'concat_feature':
             x_feat = torch.cat((x_img_feat, x_long_feat, x_cov_feat), -1)
-        elif self.fusion == 'concat_input':
+        elif self.fusion == 'concat_input' or self.fusion == 'img_only':
             x_feat = x_img_feat
         #  print('Feature fusion dims = ', x_feat.shape)
         #  print(x_feat.min(), x_feat.max())
  
         # STEP 5: MODULE 2: TEMPORAL FUSION --------------------------------
         # X_temp: (B, F_t)
-        if self.model_temporal_name == 'forecastRNN':
-            #  print(x_feat.shape, x_time_data.shape)
-            x_forecast, lossval = self.model_temporal(x_feat, x_time_data)
+        if(self.fusion != 'img_only'):
+            if self.model_temporal_name == 'forecastRNN':
+                #  print(x_feat.shape, x_time_data.shape)
+                x_forecast, lossval = self.model_temporal(x_feat, x_time_data)
+            else:
+                x_temp = self.model_temporal(x_feat[:, :-1, :])
+                #  print('Temporal dims = ', x_temp.shape)
+                #  print(x_temp.min(), x_temp.max())
+          
+                # STEP 6: MODULE 3: FORECASTING ------------------------------------
+                # x_forecast: (B, F_f)
+                x_forecast = self.model_forecast(x_temp, x_time_data)
+                #  print('Forecast dims = ', x_forecast.shape)
+                #  print(x_forecast.min(), x_forecast.max())
+                lossval = torch.tensor(0.)
         else:
-            x_temp = self.model_temporal(x_feat[:, :-1, :])
-            #  print('Temporal dims = ', x_temp.shape)
-            #  print(x_temp.min(), x_temp.max())
-      
-            # STEP 6: MODULE 3: FORECASTING ------------------------------------
-            # x_forecast: (B, F_f)
-            x_forecast = self.model_forecast(x_temp, x_time_data)
-            #  print('Forecast dims = ', x_forecast.shape)
-            #  print(x_forecast.min(), x_forecast.max())
+            x_forecast = x_feat
             lossval = torch.tensor(0.)
  
         # STEP 7: MODULE 4: TASK SPECIFIC LAYERS ---------------------------
         # DX Classification Module
-        ypred = self.model_task(x_forecast)
+        if(self.fusion != 'img_only'):
+            ypred = self.model_task(x_forecast)
+        else:
+            # for classify: y_pred: (B,1,L,W,D) -> (B,L,W,D)
+            ypred = x_forecast.squeeze(1)
         #  print('Output dims = ', ypred.shape)
 
         return ypred, lossval
@@ -147,13 +166,14 @@ class Engine:
 
         load_model = model_config.pop('load_model')
         self.num_classes = model_config.pop('num_classes')
-        self.model = Model(**model_config)
+        self.on_gpu = model_config.pop('on_gpu')
+        self.model = Model(self.on_gpu,**model_config)
 
         # Load the model
         if load_model != '':
             self.model.load_state_dict(torch.load(load_model))
-
-        #  self.model.cuda()
+        if(self.on_gpu):
+            self.model.cuda()
         self.model_params = {
                 'image': list(self.model.model_image.parameters()),
                 'temporal': list(self.model.model_temporal.parameters()),
@@ -186,8 +206,9 @@ class Engine:
             # Get Train data loss
             x_train_batch = next(datagen_train)
             y_dx = datagen.get_labels(x_train_batch, task='dx', as_tensor=True)
+            print('x_train_batch: ', x_train_batch)
             y_pred, auxloss = self.model(x_train_batch)
-            obj = self.model.loss(y_pred, y_dx) 
+            obj = self.model.loss(y_pred, y_dx).cpu()
             print('obj 1 = ', obj)
             obj = obj + auxloss
             print('obj 2 = ', obj)
@@ -204,7 +225,7 @@ class Engine:
             x_val_batch = next(datagen_val)
             y_val_dx = datagen.get_labels(x_val_batch, task='dx', as_tensor=True)
             y_val_pred, auxloss_val = self.model.forward(x_val_batch)
-            loss_val = self.model.loss(y_val_pred, y_val_dx) + auxloss_val
+            loss_val = self.model.loss(y_val_pred, y_val_dx).cpu() + auxloss_val
 
             # print loss values
             loss_vals[epoch, :] = [

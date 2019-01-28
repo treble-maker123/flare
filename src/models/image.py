@@ -59,7 +59,7 @@ class Tadpole2(nn.Module):
         return x
 
 class unet_3D(nn.Module):
-    def __init__(self, feature_scale=1, n_classes=3, is_deconv=True, in_channels=1, is_batchnorm=True):
+    def __init__(self, num_classes, feature_scale=1, n_classes=3, is_deconv=True, in_channels=1, is_batchnorm=True):
         super(unet_3D, self).__init__()
         self.is_deconv = is_deconv
         self.in_channels = in_channels
@@ -71,24 +71,23 @@ class unet_3D(nn.Module):
 
         # downsampling
         self.conv1 = UnetConv3(self.in_channels, self.filters[0], self.is_batchnorm)
-        self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 1))
+        self.maxpool1 = nn.MaxPool3d(kernel_size=(2, 2, 2))
 
         self.conv2 = UnetConv3(self.filters[0], self.filters[1], self.is_batchnorm)
-        self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 1))
+        self.maxpool2 = nn.MaxPool3d(kernel_size=(2, 2, 2))
 
         self.conv3 = UnetConv3(self.filters[1], self.filters[2], self.is_batchnorm)
-        self.maxpool3 = nn.MaxPool3d(kernel_size=(2, 2, 1))
+        self.maxpool3 = nn.MaxPool3d(kernel_size=(2, 2, 2))
 
         self.conv4 = UnetConv3(self.filters[2], self.filters[3], self.is_batchnorm)
-        self.maxpool4 = nn.MaxPool3d(kernel_size=(2, 2, 1))
+        self.maxpool4 = nn.MaxPool3d(kernel_size=(2, 2, 2))
 
         self.center = UnetConv3(self.filters[3], self.filters[4], self.is_batchnorm)
 
         # final conv (without any concat)
         
         self.globalavgpool = nn.AdaptiveAvgPool3d((1,1,1))
-        self.denselayer = nn.Linear(self.filters[1],10)
-        self.outputlayer = nn.Linear(10,3)
+        self.outputlayer = nn.Linear(self.filters[1],num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
@@ -99,26 +98,21 @@ class unet_3D(nn.Module):
                 #m = m.double()
 
     def forward(self, inputs):
-        print("before conv1")
+        #print("before conv1")
         conv1 = self.conv1(inputs)
-        print("after conv1")
+        #print("after conv1")
         
         maxpool1 = self.maxpool1(conv1)
-        print("shape maxpool1: ", maxpool1.size())
+        #print("shape maxpool1: ", maxpool1.size())
 
         conv2 = self.conv2(maxpool1)
         maxpool2 = self.maxpool2(conv2)
 
-        print("shape maxpool2: ", maxpool2.size())
+        #print("shape maxpool2: ", maxpool2.size())
         gap = self.globalavgpool(maxpool2)
-        print(gap.size())
-        gap = gap.view(self.filters[1])
+        gap = gap.view(-1,self.filters[1])
         print("shape gap: ", gap.size())
 
-        int1 = self.denselayer(gap)
-        out = self.outputlayer(int1)
-
-        classes = nn.Softmax(out)
-        vals, indices = torch.max(classes, 0)
-
-        return classes
+        out = self.outputlayer(gap)
+        print("shape output: ", out.size())
+        return out

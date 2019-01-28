@@ -133,10 +133,6 @@ class Data:
         return sorted(which_visits)         
     
     def get_cogtest(self, feat):
-        print(feat['MMSE'])
-        print(feat['PTID'])
-        print(feat['VISCODE'])
-        #print(feat['MMSE'].values[0].shape)
         return list(np.nan_to_num([
                 float(feat['MMSE'].values[0])
                 ]))
@@ -198,7 +194,6 @@ class Data:
               '36 Month follow-up': 'm36',
               '54 Month follow-up' : 'm54'}
         tree = ET.parse(fmeta)
-        print(fmeta)
         root = tree.getroot()
         vals = [x for x in root.iter('visit')]
         key = [x for x in vals[0].iter('visitIdentifier')][0].text
@@ -364,7 +359,6 @@ def get_Batch(patients, B, num_visits, feat_flag):
         
         selections = []
         patient_idx = []
-        print(patients) 
         for idx, p in enumerate(patients):
             item = p.trajectories[n_t-1] if n_t !=0 else p.which_visits
             #Check if trajectory exists. If it doesn't, don't concat it.
@@ -409,11 +403,12 @@ def get_img_batch(x, as_tensor=False, on_gpu=False):
             for t in range(T-1):
                 feat[b, t, :] = x[b, t].img_features
     elif img_type == 'cnn3d':
-        feat = np.zeros((B, T-1, 160, 240, 256))
+        #feat = np.zeros((B, T-1, 160, 240, 256))
+        feat = np.zeros((B, T-1, 40, 120, 128))
         for b in range(B):
             for t in range(T-1):                
                 path = x[b,t].img_path[:-3] + 'nii'
-                feat[b, t, :] = utils.load_img(path).get_fdata()
+                feat[b, t, :] = utils.load_img(path)
     if as_tensor==True:
         feat = torch.from_numpy(feat).float()
     if on_gpu:
