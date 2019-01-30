@@ -9,9 +9,12 @@ def load_img(path, view='axial'):
     if(path[-3:] == 'nii'):
         image = nib.load(path).get_fdata()
         image = skimage.transform.resize(image, (40,120,128))
+      #  print('Loaded image shape: ', image.shape)
         return image
     elif(path[-3:] == 'npz'):
         try:
+            path = path[:-4]+'_45x86x70.npz'
+      #      print('Loaded image path: ',path)
             with open(path,'rb') as f:
                 image = pickle.load(f)
                 return image

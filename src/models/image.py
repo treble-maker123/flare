@@ -111,8 +111,8 @@ class unet_3D(nn.Module):
         #print("shape maxpool2: ", maxpool2.size())
         gap = self.globalavgpool(maxpool2)
         gap = gap.view(-1,self.filters[1])
-        print("shape gap: ", gap.size())
+#        print("shape gap: ", gap.size())
 
         out = self.outputlayer(gap)
-        print("shape output: ", out.size())
+#        print("shape output: ", out.size())
         return out
