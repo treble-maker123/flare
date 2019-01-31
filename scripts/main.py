@@ -13,7 +13,7 @@ import numpy as np
 from src import datagen as datagen, utils, engine
 
 def main(config_file):
-    
+    print("Beginning the main function!") 
     # Parser config file
     with open(config_file) as f:
         config = yaml.load(f)

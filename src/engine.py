@@ -165,6 +165,7 @@ class Model(nn.Module):
 
 class Engine:
     def __init__(self, model_config):
+        print("Loading the model!")
 
         load_model = model_config.pop('load_model')
         self.num_classes = model_config.pop('num_classes')
@@ -185,18 +186,25 @@ class Engine:
                 'temporal': list(self.model.model_temporal.parameters()),
                 'task': list(self.model.model_task.parameters())
                 }
+
+
+
         if self.model.fusion == 'concat_feature':
             self.model_params['long'] = list(self.model.model_long.parameters())
             self.model_params['cov'] = list(self.model.model_cov.parameters())
 
-        # Initialize the optimizer
-        self.optm = torch.optim.Adam(sum(list(self.model_params.values()), []))
-
         if(self.on_gpu):
             if torch.cuda.device_count() > 1:
                 print("Let's use", torch.cuda.device_count(), "GPUs!")
-                self.model = nn.DataParallel(self.model)
-            self.model.to(device)
+                self.model.model_image = nn.DataParallel(self.model.model_image)
+            self.model.model_image.to(device)
+
+        # Initialize the optimizer
+        self.optm = torch.optim.Adam(sum(list(self.model_params.values()), []))
+
+        print("initialized the optimizer!")
+
+
 
     def train(self, datagen_train, datagen_val, exp_dir, \
             num_epochs, save_model=False):
@@ -321,14 +329,14 @@ class Engine:
                         y_pred, y_dx = y_pred_i, y_dx_i
                     else:
                        # print('y_pred type', y_pred.type())
-                        print('y_pred',y_pred)
                        # print('y_pred_i type', y_pred_i.type())
-                        print('y_pred_i',y_pred_i)
                         y_pred = torch.cat((y_pred, y_pred_i), 0) 
                         y_dx = torch.cat((y_dx, y_dx_i), 0) 
                 data_t_batch = data_t[num_batches*batch_size:]                        
                 if data_t_batch.shape[0]>1:
-                    y_pred = torch.cat((y_pred, self.model(data_t_batch)), 0)
+                    y_pred_i, _ = self.model(data_t_batch)
+                    y_pred = torch.cat((y_pred, y_pred_i), 0)
+
                     y_dx = torch.cat((y_dx, datagen.get_labels(data_t_batch, \
                             task='dx', as_tensor=True)), 0)
                 #  print('Prediction stats: ')
