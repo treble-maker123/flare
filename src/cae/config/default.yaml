@@ -1,0 +1,20 @@
+use_gpu: True
+
+data:
+    max_workers: 16
+    valid_split: 0.2
+
+model:
+    class: vanilla
+
+train:
+    num_epochs: 1
+    optim:
+        learn_rate: 0.0001
+        weight_decay: 0.0
+    batch_size: 4
+    print_iter: 1
+    save_model: True
+
+valid:
+    batch_size: 16
