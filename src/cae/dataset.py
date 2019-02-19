@@ -5,11 +5,10 @@ import nibabel as nib
 import multiprocessing as mp
 import torchvision.transforms as T
 
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils.loader import invalid_collate
-from utils.transforms import OrientFSImage
+from utils.transforms import OrientFSImage, PadPreprocImage
 
 from pdb import set_trace
 
@@ -27,7 +26,8 @@ class ADNIAutoEncDataset(Dataset):
         mapping_path = kwargs.get("mapping_path",
                                   "outputs/files_manifest.pickle")
         preproc_transforms = kwargs.get("preproc_transforms",
-                                        [T.ToTensor()])
+                                        [ T.ToTensor(),
+                                          PadPreprocImage() ])
         postproc_transforms = kwargs.get("postproc_transforms",
                                          [ T.ToTensor(),
                                            OrientFSImage() ])
@@ -73,6 +73,10 @@ class ADNIAutoEncDataset(Dataset):
             postproc_img = nib.load(postproc_path) \
                               .get_fdata() \
                               .squeeze()
+
+            if (np.isnan(preproc_img).sum() > 0) or \
+               (np.isnan(postproc_img).sum() > 0):
+                raise Exception("Corrupted image {}.".format(idx))
         except Exception as e:
             print("Failed to load #{}, skipping.".format(idx))
             return None, None
@@ -80,20 +84,7 @@ class ADNIAutoEncDataset(Dataset):
         preproc_img = self.preproc_transforms(preproc_img)
         postproc_img = self.postproc_transforms(postproc_img)
 
-        dim = tuple(preproc_img.shape)
-        pad_amount = [0, 0, 0, 0, 0, 0]
-
-        for idx in range(len(dim)):
-            if dim[idx] < 256:
-                padding = (256 - dim[idx]) // 2
-                pad_amount[idx*2] = padding
-                pad_amount[idx*2+1] = padding
-
-        pad_params = { "mode": "constant", "value": 0 }
-        preproc_img = F.pad(preproc_img,
-                            tuple(reversed(pad_amount)),
-                            **pad_params)
-
+        # Add a "channel" dimension
         preproc_img = preproc_img.unsqueeze(0)
         postproc_img = postproc_img.unsqueeze(0)
         return preproc_img, postproc_img

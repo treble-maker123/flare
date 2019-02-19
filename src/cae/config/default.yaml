@@ -10,11 +10,11 @@ model:
 train:
     num_epochs: 1
     optim:
-        learn_rate: 0.0001
+        learn_rate: 0.1
         weight_decay: 0.0
-    batch_size: 4
+    batch_size: 32
     print_iter: 1
     save_model: True
 
 valid:
-    batch_size: 16
+    batch_size: 32
