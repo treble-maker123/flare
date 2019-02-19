@@ -52,7 +52,12 @@ class Engine:
             y = y.to(device=device).float()
 
             output = model(x)
-            loss = model.loss(output, y)
+
+            if type(model) == torch.nn.DataParallel:
+                loss = model.module.loss(output, y)
+            else:
+                loss = model.loss(output, y)
+
             loss.backward()
             optimizer.step()
 
@@ -81,7 +86,11 @@ class Engine:
                 y = y.to(device=device).float()
 
                 pred = model(x)
-                loss = model.loss(x, y)
+
+                if type(model) == torch.nn.DataParallel:
+                    loss = model.module.loss(pred, y)
+                else:
+                    loss = model.loss(pred, y)
 
                 losses.append(loss.item())
 
