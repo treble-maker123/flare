@@ -8,7 +8,7 @@ model:
     class: vanilla
 
 train:
-    num_epochs: 1
+    num_epochs: 24
     optim:
         learn_rate: 0.1
         weight_decay: 0.0
@@ -18,3 +18,5 @@ train:
 
 valid:
     batch_size: 2
+
+remarks: Run on small set to see if model overfits.
