@@ -48,7 +48,7 @@ def main(config_path):
         print("\tAverage training loss: {}"
                 .format(train_result["average_loss"]))
 
-        valid_result = engine.valid()
+        valid_result = engine.validate()
         valid_history.append(valid_result)
         print("\tAverage validation loss: {}"
                 .format(valid_result["average_loss"]))

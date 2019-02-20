@@ -12,12 +12,12 @@ This is a stand-alone program that trains a convolutional autoencoder on pre-pro
 
 All numbers depend on the number of GPUs available, therefore adjust accordingly.
 
-1. 8 GPUs,
+1. 2 GPUs,
 
-2. 16 images per GPU = 128 images,
+2. 16 images per GPU = 32 images,
 
-3. 4 DataLoader workers per 1 GPU = 32 workers,
+3. 4 DataLoader workers per 1 GPU = 8 workers,
 
-4. 32 workers + 2 extra = 34 CPUs,
+4. 8 workers + 2 extra = 10 CPUs,
 
-5. 1GB per 1 CPU = 32GB (mem=32000)
+5. 45GB per 1 GPU = 90GB (mem=90000)

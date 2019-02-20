@@ -117,23 +117,13 @@ class FileMapping:
 
                 file_path = "{}/{}".format(path, file_name)
 
-                # check if the image is valid, skip the ones that are not.
-                try:
-                    image = nib.load(file_path) \
-                               .get_fdata() \
-                               .squeeze()
-
-                    if np.isnan(image).sum() > 0:
-                        raise Exception("Image corrupted.")
-                except Exception as e:
-                    print("File corrupted, skipping.")
-                    continue
-
                 if category == "preproc":
                     subject_id = parts[9]
                     date = parts[11]
                     image_id = parts[12]
                     entry = [subject_id, date, image_id, file_path, None]
+                    if not self._is_valid(file_path):
+                        continue
                 else:
                     subject_id = parts[8]
                     date = parts[10]
@@ -146,7 +136,7 @@ class FileMapping:
                           (m["image_id"] == image_id)
 
                     # skip the ones with 0 or more than 1 matches
-                    if len(m[idx].index) == 1:
+                    if len(m[idx].index) == 1 and self._is_valid(file_path):
                         self.mapping.loc[idx, "postproc_path"] = file_path
 
                 mapping.append(entry)
@@ -156,6 +146,29 @@ class FileMapping:
             self.mapping = self.mapping.append(mapping_df, ignore_index=True)
 
         return mapping
+
+    def _is_valid(self, file_path):
+        '''
+        Test whether the image is valid or corrupted.
+
+        Args:
+            file_path (string): Path to the image file.
+
+        Returns:
+            (bool): True if the file is valid, false otherwise.
+        '''
+        try:
+            image = nib.load(file_path) \
+                        .get_fdata() \
+                        .squeeze()
+
+            if np.isnan(image).sum() > 0:
+                raise Exception("Image corrupted.")
+        except Exception as e:
+            print("File corrupted, skipping.")
+            return False
+
+        return True
 
 if __name__ == "__main__":
     print("----- Started mapping.py -----")
