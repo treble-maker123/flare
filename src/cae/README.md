@@ -4,7 +4,9 @@ This is a stand-alone program that trains a convolutional autoencoder on pre-pro
 
 ## Notes
 
-1. At least 16 images per batch can be run on 1 GTX1080 TI GPU,
+1. At least 16 images per batch can be run on 1 GTX1080 TI GPU with the Vanilla model,
+
+2. A mapping file is needed to run. The mapping file contains path mapping between preprocess and postprocessed images, and can be generated with the script in `utils/mapping.py`. Be warned that running this script will take a look time, as it also opens each file and checks for error, so that corrupted files are excluded, and it does so single-threaded. Alternatively, you can find the `mapping_manifest.pickle` in `/mnt/nfs/work1/mfiterau/zguan/work1/disease_forecasting/src/cae/outputs/`.
 
 ### Current Setup on Gypsum
 
