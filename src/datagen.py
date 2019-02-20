@@ -333,7 +333,7 @@ def get_Batch(patients, B, num_visits, feat_flag):
         'B': Integer value which represents the batch size
         'n_t': Integer between 1 and the number of trajectory types traj_{n_t}. 
                used to select which trajectory type we want to sample from
-        'feat_flag': String that is set to 'tadpole' or 'image' 
+        'feat_flag': String that is set to 'tadpole' or 'cnn3d' 
                     depending what kind of image features we want to train with.
     Returns:
         'ret': a BxT matrix of Data_Batch objects 
@@ -398,7 +398,7 @@ def get_img_batch(x, as_tensor=False, on_gpu=False):
             for t in range(T-1):
                 feat[b, t, :] = x[b, t].img_features
     elif img_type == 'cnn3d':
-        feat = np.zeros((B, T-1, 256, 256, 150))
+        feat = np.zeros((B, T-1, 45, 86, 70))
         for b in range(B):
             for t in range(T-1):                
                 feat[b, t, :] = utils.load_img(x[b, t].img_path[:-3]+'npz')

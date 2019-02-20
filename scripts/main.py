@@ -10,10 +10,10 @@ import ipdb
 from time import time
 import pickle
 import numpy as np
-from src import datagen_aibl as datagen, utils, engine
+from src import datagen as datagen, utils, engine
 
 def main(config_file):
-    
+    print("Beginning the main function!") 
     # Parser config file
     with open(config_file) as f:
         config = yaml.load(f)
@@ -35,7 +35,7 @@ def main(config_file):
         with open(path_load, 'rb') as f:
             data = pickle.load(f)
     else:
-        data = datagen.get_data_aibl(**config['data'])
+        data = datagen.get_data(**config['data'])
         with open(path_load, 'wb') as f:
             pickle.dump(data, f)
     print('Data Loaded : ', time()-t)
