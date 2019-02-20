@@ -103,7 +103,10 @@ class Engine:
         device = kwargs.get("device", self._device)
         model = self._model.to(device=device)
 
-        torch.save(model.state_dict(), path)
+        if type(model) == torch.nn.DataParallel:
+            torch.save(model.module.state_dict(), path)
+        else:
+            torch.save(model.state_dict(), path)
 
     def _setup_device(self, device):
         '''

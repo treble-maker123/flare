@@ -6,6 +6,8 @@
 import os
 import pickle
 import pandas as pd
+import numpy as np
+import nibabel as nib
 
 from fnmatch import fnmatch
 from pdb import set_trace
@@ -84,7 +86,9 @@ class FileMapping:
 
     def _get_paths(self, root, **kwargs):
         '''
-        Goes through all of the files under the root directory, identify the ones with .nii extension, and builds self.mapping according.
+        Goes through all of the files under the root directory, identify the ones with .nii extension, and builds self.mapping accordingly.
+
+        This method modifies self.mapping directly.
 
         Args:
             **kwargs:
@@ -109,10 +113,21 @@ class FileMapping:
                 if len(parts) != parts_len:
                     print("Irregular file path, skipped... {}" \
                             .format(file_name))
-                    set_trace()
                     continue
 
                 file_path = "{}/{}".format(path, file_name)
+
+                # check if the image is valid, skip the ones that are not.
+                try:
+                    image = nib.load(file_path) \
+                               .get_fdata() \
+                               .squeeze()
+
+                    if np.isnan(image).sum() > 0:
+                        raise Exception("Image corrupted.")
+                except Exception as e:
+                    print("File corrupted, skipping.")
+                    continue
 
                 if category == "preproc":
                     subject_id = parts[9]

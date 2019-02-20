@@ -12,9 +12,9 @@ train:
     optim:
         learn_rate: 0.1
         weight_decay: 0.0
-    batch_size: 64
+    batch_size: 24
     print_iter: 1
     save_model: True
 
 valid:
-    batch_size: 64
+    batch_size: 24
