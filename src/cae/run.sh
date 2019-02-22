@@ -6,10 +6,10 @@
 #SBATCH --partition=1080ti-long
 #SBATCH --ntasks=12                      # Set to max_workers + 2
 #SBATCH --time=02-00:00                 # Runtime in D-HH:MM
-#SBATCH --mem=90000
+#SBATCH --mem=240000
 #SBATCH --gres=gpu:2
 
 
-python main.py --run_id=$SLURM_JOB_ID
+python3 main.py --run_id=$SLURM_JOB_ID --config="config/classify.yaml"
 sleep 1
 exit

@@ -206,7 +206,7 @@ class ADNIClassDataset(Dataset):
 
         self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
 
-        self.df = self.df.iloc[:10]
+        self.df = self.df.iloc[:512]
 
         # train/validation split
         train_split = 1 - valid_split
