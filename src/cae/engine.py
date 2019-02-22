@@ -6,9 +6,10 @@ import multiprocessing as mp
 from torch.utils.data import DataLoader
 from pdb import set_trace
 
-from dataset import ADNIAutoEncDataset
-from models.vanilla import Vanilla
+from dataset import ADNIAutoEncDataset, ADNIClassDataset
+from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
+from models.classifier import Classify
 
 from utils.loader import invalid_collate
 
@@ -47,10 +48,11 @@ class Engine:
         losses = []
 
         for num_iter, (x, y) in enumerate(self.train_loader):
+
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
-            y = y.to(device=device).float()
+            y = y.to(device=device).long()
 
             output = model(x)
 
@@ -84,7 +86,7 @@ class Engine:
         with torch.no_grad():
             for num_iter, (x, y) in enumerate(self.valid_loader):
                 x = x.to(device=device).float()
-                y = y.to(device=device).float()
+                y = y.to(device=device).long()
 
                 pred = model(x)
 
@@ -136,12 +138,15 @@ class Engine:
         config = self._config
         model_class = config["model"]['class']
 
-        if model_class == "vanilla":
-            print("Using vanilla model.")
-            self._model = Vanilla()
+        if model_class == "vanilla_cae":
+            print("Using vanilla_cae model.")
+            self._model = VanillaCAE()
         elif model_class == "transformer":
             print("Using transformer model.")
             self._model = SpatialTransformConvAutoEnc()
+        elif model_class == "classify":
+            print("Using classify model.")
+            self._model = Classify()
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
 
@@ -175,11 +180,17 @@ class Engine:
             "shuffle": True
         }
 
-        self.train_dataset = ADNIAutoEncDataset(**train_dataset_params)
-        self.valid_dataset = ADNIAutoEncDataset(**valid_dataset_params)
+        if self._config["data"]['set_name'] == "autoenc":
+            self.train_dataset = ADNIAutoEncDataset(**train_dataset_params)
+            self.valid_dataset = ADNIAutoEncDataset(**valid_dataset_params)
+        elif self._config["data"]["set_name"] == "classify":
+            self.train_dataset = ADNIClassDataset(**train_dataset_params)
+            self.valid_dataset = ADNIClassDataset(**valid_dataset_params)
+
         self.train_loader = DataLoader(self.train_dataset,
                                        **train_loader_params)
         self.valid_loader = DataLoader(self.valid_dataset,
                                        **valid_loader_params)
+
         print("{} training data, {} validation data"
                 .format(len(self.train_dataset), len(self.valid_dataset)))

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from pdb import set_trace
 
-class Vanilla(nn.Module):
+class VanillaCAE(nn.Module):
     '''
     A basic CNN with a three-layer encoder and three-layer decoder.
     '''
@@ -24,7 +24,7 @@ class Vanilla(nn.Module):
 
 class VanillaEncoder(nn.Module):
     '''
-    The encoder portion of the Vanilla model.
+    The encoder portion of the VanillaCAE model.
     '''
     def __init__(self, num_kernels):
         super().__init__()
@@ -56,7 +56,7 @@ class VanillaEncoder(nn.Module):
 
 class VanillaDecoder(nn.Module):
     '''
-    The decoder portion of the Vanilla model.
+    The decoder portion of the VanillaCAE model.
     '''
     def __init__(self, num_kernels):
         super().__init__()
