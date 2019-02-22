@@ -38,14 +38,12 @@ class Classify(nn.Module):
         self.fc3 = nn.Linear(16, 3)
 
     def forward(self, x):
-        #print(x.shape)
         l1 = F.relu(self.bn1(self.cn1(x)))
-        #print(l1.shape)
-        l2 = F.relu(self.pool2(self.bn2(self.cn2(l1))))
+        l2 = self.pool2(F.relu(self.bn2(self.cn2(l1))))
         l3 = F.relu(self.bn3(self.cn3(l2)))
         l4 = self.bn4(self.cn4(l3))
         #print(l4.shape)
-        l4 = F.relu(self.pool4(l4))
+        l4 = self.pool4(F.relu(l4))
         #print(l4.shape)
         l4 = l4.view(-1, 128)
         #print(l4.shape)

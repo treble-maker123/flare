@@ -55,7 +55,7 @@ class Engine:
             y = y.to(device=device).long()
 
             output = model(x)
-
+            #pdb.set_trace() 
             if type(model) == torch.nn.DataParallel:
                 loss = model.module.loss(output, y)
             else:
@@ -160,11 +160,13 @@ class Engine:
 
         train_dataset_params = {
             "mode": "train",
-            "valid_split": config["data"]["valid_split"]
+            "valid_split": config["data"]["valid_split"],
+            "limit": config["data"]["limit"]
         }
         valid_dataset_params = {
             "mode": "valid",
-            "valid_split": config["data"]["valid_split"]
+            "valid_split": config["data"]["valid_split"],
+            "limit": config["data"]["limit"]
         }
 
         train_loader_params = {

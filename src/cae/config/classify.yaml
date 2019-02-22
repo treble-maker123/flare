@@ -2,8 +2,9 @@ use_gpu: True
 
 data:
     set_name: classify
-    max_workers: 10
+    max_workers: 1
     valid_split: 0.2
+    limit: 512
 
 model:
     class: classify
@@ -13,11 +14,11 @@ train:
     optim:
         learn_rate: 0.1
         weight_decay: 0.0
-    batch_size: 8
+    batch_size: 1
     print_iter: 2
     save_model: True
 
 valid:
-    batch_size: 8
+    batch_size: 1
 
 remarks: Run on small set to see if model overfits.
