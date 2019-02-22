@@ -10,14 +10,12 @@ from pdb import set_trace
 from engine import Engine
 from utils.dir import mkdir
 
-def main(config_path):
+def main(config_path, run_id):
     # https://github.com/pytorch/pytorch/issues/1485
     torch.backends.cudnn.benchmark=True
 
     with open(config_path) as file:
         config = yaml.load(file)
-
-    run_id = uuid.uuid4().hex.upper()[0:6]
 
     print("----- START ({}) -----".format(run_id))
     print("Following configurations are used for this run:")
@@ -83,6 +81,10 @@ if __name__ == "__main__":
             "Running from the wrong directory. Make sure to run \"python main.py\" from \"disease_forecasting/src/cae/\"."
 
     parser = ArgumentParser()
+
     parser.add_argument("--config", type=str, default="config/default.yaml")
+    parser.add_argument("--run_id", type=str,
+                                    default=uuid.uuid4().hex.upper()[0:6])
+
     args = parser.parse_args()
-    main(args.config)
+    main(args.config, args.run_id)

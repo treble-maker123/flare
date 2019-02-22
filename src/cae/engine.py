@@ -8,6 +8,7 @@ from pdb import set_trace
 
 from dataset import ADNIAutoEncDataset
 from models.vanilla import Vanilla
+from models.transform_cae import SpatialTransformConvAutoEnc
 
 from utils.loader import invalid_collate
 
@@ -138,6 +139,9 @@ class Engine:
         if model_class == "vanilla":
             print("Using vanilla model.")
             self._model = Vanilla()
+        elif model_class == "transformer":
+            print("Using transformer model.")
+            self._model = SpatialTransformConvAutoEnc()
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
 

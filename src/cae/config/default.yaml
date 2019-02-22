@@ -5,7 +5,7 @@ data:
     valid_split: 0.2
 
 model:
-    class: vanilla
+    class: transformer
 
 train:
     num_epochs: 24

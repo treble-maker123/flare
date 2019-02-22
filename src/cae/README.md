@@ -18,6 +18,33 @@ All numbers depend on the number of GPUs available, therefore adjust accordingly
 
 3. 4 DataLoader workers per 1 GPU = 8 workers,
 
-4. 8 workers + 2 extra = 10 CPUs,
+4. 8 workers + 2 extra * 2 GPU = 12 CPUs, (48 CPUs / 8 GPUs = 6 CPUs/GPU)
 
-5. 45GB per 1 GPU = 90GB (mem=90000)
+5. 45GB per 1 GPU = 90,000 (if you use more than 45GB per GPU, someone might be angry)
+
+### Procedures for Adding Model
+
+1. Create a file under `models/`,
+
+2. Import the class into `engine.py`,
+
+3. In the `_setup_model()` method of the `Engine` class, add another `elif` statement. For example,
+
+```python
+if model_class == "vanilla":
+    ...
+# START OF YOUR CODE
+elif model_class = "custom_model":
+    print("Using custom model.")
+    self._model = CustomModel() # Instantiate your model
+# END OF YOUR CODE
+else:
+            raise Exception("Unrecognized model: {}".format(model_class))
+```
+
+4. In `config_default.yaml`, update the model/class parameter. For example,
+
+```yaml
+model:
+    class: custom_class
+```
