@@ -10,6 +10,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils.loader import invalid_collate
 from utils.transforms import OrientFSImage, PadPreprocImage
+from sklearn.preprocessing import LabelEncoder
 
 from pdb import set_trace
 
@@ -189,6 +190,12 @@ class ADNIAutoEncDataset(Dataset):
         else:
             return self.df
 
+    def _get_label_encoder(self, labels):
+        encoder = LabelEncoder()
+        encoder.fit(labels)
+
+        return encoder
+
 class ADNIClassDataset(ADNIAutoEncDataset):
     '''
     ADNI dataset for training classification. This dataset relies on a mapping file, which is generated with the mapping.py script in utils/. The mapping.py script makes certain assumptions about the location of all of the data files.
@@ -208,6 +215,11 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         valid_split = kwargs.get("valid_split", 0.2)
 
         self.df = self._filter_data()
+
+        # Setup labels
+        labels = self.df.label[self.df.label.notnull()].unique()
+        self.label_encoder = self._get_label_encoder(labels)
+
         self.df = self._split_data(valid_split, mode)
 
     def __getitem__(self, idx):
@@ -230,9 +242,9 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         postproc_img = postproc_img.unsqueeze(0)
 
         # Find the label for corresponding patient data
-        output = self._get_label(idx)
+        label = self._get_label(idx)
 
-        return postproc_img, output
+        return postproc_img, label
 
     def _get_label(self, idx):
         '''
@@ -244,15 +256,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             string: AD/MCI/NC
         '''
         label = self.df.label.iloc[idx]
-
-        if label == "AD":
-            return 2
-        elif label == "LMCI":
-            return 1
-        elif label == "CN":
-            return 0
-        else:
-            raise Exception("Unrecognizable label {}.".format(label))
+        return self.label_encoder.transform(label)[0]
 
     def _filter_data(self):
         '''
