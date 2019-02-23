@@ -15,7 +15,7 @@ train:
         learn_rate: 0.1
         weight_decay: 0.0
     batch_size: 1
-    print_iter: 2
+    print_iter: 10
     save_model: True
 
 valid:

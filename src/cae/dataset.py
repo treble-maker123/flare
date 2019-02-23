@@ -53,7 +53,7 @@ class ADNIAutoEncDataset(Dataset):
         self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
 
         self._set_size_limit(limit)
-        self.df = self._split_data(valid_split)
+        self.df = self._split_data(valid_split, mode)
 
     def __len__(self):
         return len(self.df.index)
@@ -178,7 +178,7 @@ class ADNIAutoEncDataset(Dataset):
         else:
             print("Limiting total dataset size to: {}".format(limit))
 
-    def _split_data(self, valid_split):
+    def _split_data(self, valid_split, mode):
         train_split = 1 - valid_split
         num_train = int(len(self.df.index) * train_split)
 
@@ -203,12 +203,12 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         # This is to ensure the entire set is loaded by the parent
         mode = kwargs.get("mode", "all")
         kwargs["mode"] = "all"
-        super().__init__(kwargs)
+        super().__init__(**kwargs)
 
         valid_split = kwargs.get("valid_split", 0.2)
 
         self.df = self._filter_data()
-        self.df = self._split_data(valid_split)
+        self.df = self._split_data(valid_split, mode)
 
     def __getitem__(self, idx):
         postproc_path = self._get_paths(idx)[1]
