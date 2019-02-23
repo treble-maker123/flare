@@ -84,6 +84,65 @@ class FileMapping:
         with open(output_path + output_name, 'wb') as file:
             pickle.dump(self.mapping, file)
 
+    def read_features(self, **kwargs):
+        manifest_path = kwargs.get("manifest_path",
+                                   "../outputs/files_manifest_filtered.pickle")
+        features_path = kwargs.get("features_path",
+                                   "../../../data/features.csv")
+        output_path = kwargs.get("output_path",
+                                 "../outputs/files_manifest.pickle")
+        print("Started reading features.")
+
+        with open(manifest_path, "rb") as file:
+            manifest = pickle.load(file)
+
+        with open(features_path, "rb") as file:
+            features = pd.read_csv(file, names=[
+                "PTID", "EXAMDATE", "DX_bl", "DXCHANGE", "AGE", "PTGENDER", "PTEDUCAT", "PTETHCAT", "PTRACCAT", "PTMARRY", "APOE4"
+            ])
+
+        manifest["label"] = None
+        manifest["age"] = None
+        manifest["gender"] = None
+        manifest["marital_status"] = None
+        manifest["ethnic_category"] = None
+        manifest["race_category"] = None
+        manifest["years_of_edu"] = None
+
+        # import pdb; pdb.set_trace()
+
+        for idx, row in manifest.iterrows():
+            subject_id = row['subject_id']
+            date = row['date'].split("_")[0]
+
+            target = (features["PTID"] == subject_id) & \
+                     (features["EXAMDATE"] == date)
+
+            if len(features[target].index) == 1:
+                print("Found a match for {} on {}".format(subject_id, date))
+                row["label"] = features.iloc[idx]["DX_bl"]
+                row["age"] = features.iloc[idx]["AGE"]
+                row["gender"] = features.iloc[idx]["PTGENDER"]
+                row["marital_status"] = features.iloc[idx]["PTMARRY"]
+                row["ethnic_category"] = features.iloc[idx]["PTETHCAT"]
+                row["race_category"] = features.iloc[idx]["PTRACCAT"]
+                row["years_of_edu"] = features.iloc[idx]["PTEDUCAT"]
+            elif len(features[target].index) > 1:
+                print("More than one record matched the subject ID ({}) and exam date ({})".format(subject_id, date))
+
+        has_paths = manifest["postproc_path"].notnull()
+        has_label = manifest["label"].notnull()
+        valid_pairs = manifest[has_paths & has_label]
+
+        print("There are {} paths with labels.".format(len(valid_pairs.index)))
+
+        with open(output_path, "wb") as file:
+            pickle.dump(manifest, file)
+
+        # import pdb; pdb.set_trace()
+
+        print("Finished reading features.")
+
     def _get_paths(self, root, **kwargs):
         '''
         Goes through all of the files under the root directory, identify the ones with .nii extension, and builds self.mapping accordingly.
@@ -173,5 +232,6 @@ class FileMapping:
 if __name__ == "__main__":
     print("----- Started mapping.py -----")
     mapping = FileMapping()
-    mapping.generate_files_manifest(verbose=True)
+    # mapping.generate_files_manifest(verbose=True)
+    mapping.read_features()
     print("----- Finished mapping.py -----")
