@@ -40,40 +40,20 @@ class ADNIAutoEncDataset(Dataset):
         valid_split = kwargs.get("valid_split", 0.2)
         limit = kwargs.get("limit", -1)
 
-        if not os.path.exists(mapping_path):
-            raise Exception("Failed to create dataset, \"{}\" does not exist! Run \"utils/mapping.py\" script to generate mapping."
-                .format(mapping_path))
+        self._check_mapping_file(mapping_path)
+        self._check_valid_mode(mode)
+        self._check_valid_split(valid_split)
 
-        if mode not in ["train", "valid", "all"]:
-            raise Exception("Invalid mode: {}".format(mode))
-
-        if not 0.0 < valid_split < 1.0:
-            raise Exception("Invalid validation split percentage: {}"
-                                .format(valid_split))
-
-        with open(mapping_path, "rb") as file:
-            self.df = pickle.load(file)
- 
-        self.df = self.df[(self.df["label"]=="AD") | (self.df["label"]=="MCI") | (self.df["label"]=="NC")]        
-        
         self.preproc_transforms = T.Compose(preproc_transforms)
         self.postproc_transforms = T.Compose(postproc_transforms)
 
+        with open(mapping_path, "rb") as file:
+            self.df = pickle.load(file)
+
         self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
 
-        if limit != -1:
-            assert limit > 0, "Invalid limit size: {}. Must be -1 or greater than 0".format(limit)
-            self.df = self.df.iloc[:limit]
-        else:
-            print("Limiting total dataset size to: {}".format(limit))
-
-        # train/validation split
-        train_split = 1 - valid_split
-        num_train = int(len(self.df.index) * train_split)
-        if mode == "train":
-            self.df = self.df.iloc[:num_train].reset_index()
-        elif mode == "valid":
-            self.df = self.df.iloc[num_train:].reset_index()
+        self._set_size_limit(limit)
+        self.df = self._split_data(valid_split)
 
     def __len__(self):
         return len(self.df.index)
@@ -170,6 +150,44 @@ class ADNIAutoEncDataset(Dataset):
         '''
         return (tuple(preproc.shape), tuple(postproc.shape))
 
+    def _check_mapping_file(self, mapping_path):
+        if not os.path.exists(mapping_path):
+            raise Exception("Failed to create dataset, \"{}\" does not exist! Run \"utils/mapping.py\" script to generate mapping."
+                .format(mapping_path))
+
+    def _check_valid_mode(self, mode):
+        if mode not in ["train", "valid", "all"]:
+            raise Exception("Invalid mode: {}".format(mode))
+
+    def _check_valid_split(self, split):
+        if not 0.0 < split < 1.0:
+            raise Exception("Invalid validation split percentage: {}"
+                                .format(split))
+
+    def _set_size_limit(self, limit):
+        '''
+        A limit set so that a subset of the dataset is used.
+
+        Args:
+            limit (int): The size of the dataset. -1 to use all available data. Defaults to -1.
+        '''
+
+        if limit != -1:
+            assert limit > 0, "Invalid limit size: {}. Must be -1 or greater than 0".format(limit)
+            self.df = self.df.iloc[:limit]
+        else:
+            print("Limiting total dataset size to: {}".format(limit))
+
+    def _split_data(self, valid_split):
+        train_split = 1 - valid_split
+        num_train = int(len(self.df.index) * train_split)
+
+        if mode == "train":
+            return self.df.iloc[:num_train].reset_index()
+        elif mode == "valid":
+            return self.df.iloc[num_train:].reset_index()
+        else:
+            return self.df
 
 class ADNIClassDataset(ADNIAutoEncDataset):
     '''
@@ -181,6 +199,17 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             mode (string): "train" for training split, "valid" for validation split, and "all" for the whole set, defaults to "all".
             valid_split (float): Percentage of data reserved for validation, ignored if mode is set to "train" or "all, defaults to 0.2.
     '''
+    def __init__(self, **kwargs):
+        # This is to ensure the entire set is loaded by the parent
+        mode = kwargs.get("mode", "all")
+        kwargs["mode"] = "all"
+        super().__init__(kwargs)
+
+        valid_split = kwargs.get("valid_split", 0.2)
+
+        self.df = self._filter_data()
+        self.df = self._split_data(valid_split)
+
     def __getitem__(self, idx):
         postproc_path = self._get_paths(idx)[1]
 
@@ -202,6 +231,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
 
         # Find the label for corresponding patient data
         output = self._get_label(idx)
+
         return postproc_img, output
 
     def _get_label(self, idx):
@@ -212,28 +242,29 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             idx (int): Index of the patient info
         Return:
             string: AD/MCI/NC
-
         '''
         label = self.df.label.iloc[idx]
+
         if label == "AD":
             return 2
-        elif label == "MCI":
+        elif label == "LMCI":
             return 1
-        return 0
+        elif label == "CN":
+            return 0
+        else:
+            raise Exception("Unrecognizable label {}.".format(label))
 
-    def _get_subjectID(self, idx):
+    def _filter_data(self):
         '''
-        Returns the patient subject ID for the given index.
+        Filter out the records that don't have postproc_path or labels
 
-        Args:
-            idx (int): Index of the paths
         Returns:
-            tuple: A pair of strings containing the preprocess and post-processed image paths.
+            pandas.DataFrame: All of the rows that contain postproc_path and labels.
         '''
-        subject_id = self.df.subject_id.iloc[idx]
+        has_labels = self.df["label"].notnull()
+        has_paths = self.df["postproc_path"].notnull()
 
-        return subject_id
-
+        return self.df[has_labels & has_paths]
 
 if __name__ == "__main__":
     dataset = ADNIAutoEncDataset()
