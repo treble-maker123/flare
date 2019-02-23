@@ -53,7 +53,9 @@ class ADNIAutoEncDataset(Dataset):
 
         with open(mapping_path, "rb") as file:
             self.df = pickle.load(file)
-
+ 
+        self.df = self.df[(self.df["label"]=="AD") | (self.df["label"]=="MCI") | (self.df["label"]=="NC")]        
+        
         self.preproc_transforms = T.Compose(preproc_transforms)
         self.postproc_transforms = T.Compose(postproc_transforms)
 
@@ -171,7 +173,7 @@ class ADNIAutoEncDataset(Dataset):
 
 class ADNIClassDataset(ADNIAutoEncDataset):
     '''
-    ADNI dataset for training auto-encoder. This dataset relies on a mapping file, which is generated with the mapping.py script in utils/. The mapping.py script makes certain assumptions about the location of all of the data files.
+    ADNI dataset for training classification. This dataset relies on a mapping file, which is generated with the mapping.py script in utils/. The mapping.py script makes certain assumptions about the location of all of the data files.
 
     Args:
         **kwargs:
@@ -199,16 +201,25 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         postproc_img = postproc_img.unsqueeze(0)
 
         # Find the label for corresponding patient data
-        subject_id = self._get_subjectID(idx)
-        features = np.loadtxt("../../data/features2.csv", delimiter=',', skiprows=1, dtype='str')
-        label = features[np.where(features[:,0] == subject_id), 1]
-        label = str(label)
-        output = 0
-        if label == "AD":
-            output = 2
-        elif label == "MCI":
-            output = 1
+        output = self._get_label(idx)
         return postproc_img, output
+
+    def _get_label(self, idx):
+        '''
+        Returns the patient label, eg AD/MCI/NC, for the given index
+
+        Args:
+            idx (int): Index of the patient info
+        Return:
+            string: AD/MCI/NC
+
+        '''
+        label = self.df.label.iloc[idx]
+        if label == "AD":
+            return 2
+        elif label == "MCI":
+            return 1
+        return 0
 
     def _get_subjectID(self, idx):
         '''
