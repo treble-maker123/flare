@@ -59,7 +59,7 @@ class FileMapping:
                 output_path (string): Directory to output the file, defaults to "outputs/"
                 verbose (bool): Whether to log additional data, defaults to True
         '''
-        output_name = kwargs.get("output_name", "files_manifest.pickle")
+        output_name = kwargs.get("output_name", "files_manifest_filtered.pickle")
         output_path = kwargs.get("output_path", "../outputs/")
         verbose = kwargs.get("verbose", True)
 
@@ -91,15 +91,15 @@ class FileMapping:
                                    "../../../data/features.csv")
         output_path = kwargs.get("output_path",
                                  "../outputs/files_manifest.pickle")
-        print("Started reading features.")
+        names = kwargs.get("names", [])
+
+        print("Started reading features from {}.".format(features_path))
 
         with open(manifest_path, "rb") as file:
             manifest = pickle.load(file)
 
         with open(features_path, "rb") as file:
-            features = pd.read_csv(file, names=[
-                "PTID", "EXAMDATE", "DX_bl", "DXCHANGE", "AGE", "PTGENDER", "PTEDUCAT", "PTETHCAT", "PTRACCAT", "PTMARRY", "APOE4"
-            ])
+            features = pd.read_csv(file, names=names)
 
         manifest["label"] = None
         manifest["age"] = None
@@ -108,8 +108,6 @@ class FileMapping:
         manifest["ethnic_category"] = None
         manifest["race_category"] = None
         manifest["years_of_edu"] = None
-
-        # import pdb; pdb.set_trace()
 
         for idx, row in manifest.iterrows():
             subject_id = row['subject_id']
@@ -138,8 +136,6 @@ class FileMapping:
 
         with open(output_path, "wb") as file:
             pickle.dump(manifest, file)
-
-        # import pdb; pdb.set_trace()
 
         print("Finished reading features.")
 
@@ -183,6 +179,8 @@ class FileMapping:
                     entry = [subject_id, date, image_id, file_path, None]
                     if not self._is_valid(file_path):
                         continue
+                    else:
+                        mapping.append(entry)
                 else:
                     subject_id = parts[8]
                     date = parts[10]
@@ -195,14 +193,16 @@ class FileMapping:
                           (m["image_id"] == image_id)
 
                     # skip the ones with 0 or more than 1 matches
-                    if len(m[idx].index) == 1 and self._is_valid(file_path):
-                        self.mapping.loc[idx, "postproc_path"] = file_path
+                    if self._is_valid(file_path):
+                        if len(m[idx].index) == 1:
+                            self.mapping.loc[idx, "postproc_path"] = file_path
+                        elif len(m[idx].index) == 0:
+                            mapping.append(entry)
+                    else:
+                        print("Invalid file, skipped.")
 
-                mapping.append(entry)
-
-        if category == "preproc":
-            mapping_df = pd.DataFrame(mapping, columns=self.COLUMNS)
-            self.mapping = self.mapping.append(mapping_df, ignore_index=True)
+        mapping_df = pd.DataFrame(mapping, columns=self.COLUMNS)
+        self.mapping = self.mapping.append(mapping_df, ignore_index=True)
 
         return mapping
 
@@ -231,7 +231,19 @@ class FileMapping:
 
 if __name__ == "__main__":
     print("----- Started mapping.py -----")
+
     mapping = FileMapping()
     # mapping.generate_files_manifest(verbose=True)
-    mapping.read_features()
+
+    # using features.csv file
+    features_names = [ "PTID", "EXAMDATE", "DX_bl", "DXCHANGE", "AGE", "PTGENDER", "PTEDUCAT", "PTETHCAT", "PTRACCAT", "PTMARRY", "APOE4" ]
+    features_path = "../../../data/features.csv"
+
+    # using adni_features.csv file
+    adni_features_names = [ "RID", "PTID", "VISCODE", "SITE", "EXAMDATE", "DX_bl", "AGE", "PTGENDER", "PTEDUCAT", "PTETHCAT", "PTRACCAT", "PTMARRY", "IMAGEUID", "EXAMDATE_bl" ]
+    adni_features_path = "../../../data/adni_features.csv"
+
+    mapping.read_features(names=adni_features_names,
+                          features_path=adni_features_path)
+
     print("----- Finished mapping.py -----")
