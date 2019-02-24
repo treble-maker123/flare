@@ -320,7 +320,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
 
 class ADNIAeCnnDataset(ADNIClassDataset):
     def __getitem__(self, idx):
-        postproc_path = self.df.loc[idx].postproc_path
+        postproc_path = self.df.iloc[idx].postproc_path
         label = self._get_label(idx)
         try:
             postproc_img = nib.load(postproc_path) \
@@ -331,12 +331,12 @@ class ADNIAeCnnDataset(ADNIClassDataset):
         except Exception as e:
             print("Failed to load #{}, skipping.".format(idx))
             return None, None
-        postproc_img = self.postproc_transforms(postproc_img)
+        #postproc_img = self.postproc_transforms(postproc_img)
         # Add a "channel" dimension
-        postproc_img = postproc_img.unsqeeze(0)
-        patch_samples = getRandomPatches(postproc_img)
+        #postproc_img = postproc_img.unsqeeze(0)
+        #patch_samples = getRandomPatches(postproc_img)
         #patch_dict = {"patch": patch_samples}
-        return patch_samples[0]
+        return np.ones((5,5,5)), label
 
     def customToTensor(pic):
         if isinstance(pic, np.ndarray):

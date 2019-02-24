@@ -18,6 +18,7 @@ class AE_CNN(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def reconstruct(self, x):
+        #x = self.downsample(x)
         h = F.relu(self.encode(x))
         out = F.relu(self.decode(h))
         return out, h, x
