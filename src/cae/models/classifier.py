@@ -50,7 +50,7 @@ class Classify(nn.Module):
         l5 = F.relu(self.fc1(l4))
         l6 = F.relu(self.fc2(l5))
         l7 = self.fc3(l6)
-        return l7  
+        return l7
 
     def loss(self, x, y):
         return F.cross_entropy(x, y)

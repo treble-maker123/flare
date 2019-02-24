@@ -43,7 +43,7 @@ class ADNIAutoEncDataset(Dataset):
         valid_split = kwargs.get("valid_split", 0.2)
         test_split = kwargs.get("test_split", 0.0)
 
-        limit = kwargs.get("limit", -1)
+        self.limit = kwargs.get("limit", -1)
 
         self._check_mapping_file(mapping_path)
         self._check_valid_mode(mode)
@@ -56,12 +56,16 @@ class ADNIAutoEncDataset(Dataset):
             self.df = pickle.load(file)
 
         self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
-
-        self._set_size_limit(limit)
         self.df = self._split_data(self.df, valid_split, test_split, mode)
 
     def __len__(self):
-        return len(self.df.index)
+        if self.limit == -1:
+            return len(self.df.index)
+        elif 0 < self.limit < len(self.df.index):
+            return self.limit
+        else:
+            raise Exception("Invalid dataset size limit set: {}"
+                            .format(self.limit))
 
     def __getitem__(self, idx):
         preproc_path, postproc_path = self._get_paths(idx)
@@ -165,30 +169,16 @@ class ADNIAutoEncDataset(Dataset):
             raise Exception("Invalid mode: {}".format(mode))
 
     def _check_valid_split(self, valid_split, test_split):
-        if not 0.0 < valid_split < 1.0:
+        if not 0.0 <= valid_split <= 1.0:
             raise Exception("Invalid validation split percentage: {}"
                                 .format(valid_split))
 
-        if not 0.0 < test_split < 1.0:
+        if not 0.0 <= test_split <= 1.0:
             raise Exception("Invalid test split percentage: {}"
                                 .format(test_split))
 
         if (valid_split + test_split) > 1.0:
             raise Exception("valid_split + test_split ({}) is greater than 1.0".format(valid_split + test_split))
-
-    def _set_size_limit(self, limit):
-        '''
-        A limit set so that a subset of the dataset is used.
-
-        Args:
-            limit (int): The size of the dataset. -1 to use all available data. Defaults to -1.
-        '''
-
-        if limit != -1:
-            assert limit > 0, "Invalid limit size: {}. Must be -1 or greater than 0".format(limit)
-            self.df = self.df.iloc[:limit]
-        else:
-            print("Limiting total dataset size to: {}".format(limit))
 
     def _split_data(self, df, valid_split, test_split, mode):
         train_split = 1 - valid_split - test_split
@@ -256,7 +246,8 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         self.ad = self.df[ self.df.label == "AD" ]
         self.mci = self.df[ self.df.label == "MCI" ]
         self.cn = self.df[ self.df.label == "CN" ]
-        print("Image distribution over classes:")
+        print("Image distribution over classes for {}/{}:"
+                .format(self.task, mode))
         print("\tAD: {}\n\tMCI: {}\n\tCN: {}".format(
             len(self.ad.index), len(self.mci.index), len(self.cn.index)))
 
@@ -283,7 +274,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             ])
 
     def __getitem__(self, idx):
-        postproc_path = self.df.loc[idx].postproc_path
+        postproc_path = self.df.iloc[idx].postproc_path
         label = self._get_label(idx)
 
         try:
@@ -314,7 +305,8 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             string: AD/MCI/NC
         '''
         label = self.df.label.iloc[idx]
-        return self.label_encoder.transform(label)[0]
+
+        return self.label_encoder.transform([label])[0]
 
     def _filter_data(self):
         '''

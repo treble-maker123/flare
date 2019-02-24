@@ -10,6 +10,7 @@ from dataset import ADNIAutoEncDataset, ADNIClassDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
+from models.hosseini import Hosseini
 
 from utils.loader import invalid_collate
 
@@ -235,6 +236,9 @@ class Engine:
         elif model_class == "classify":
             print("Using classify model.")
             self._model = Classify()
+        elif model_class == "hosseini":
+            print("Using Hosseini model.")
+            self._model = Hosseini()
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
 
