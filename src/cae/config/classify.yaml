@@ -4,10 +4,15 @@ data:
     set_name: classify
     max_workers: 1
     valid_split: 0.2
+    test_split: 0.0
     limit: 512
 
 model:
     class: classify
+
+pretrain:
+    skip: False
+    num_epochs: 5
 
 train:
     num_epochs: 24
@@ -19,6 +24,9 @@ train:
     save_model: True
 
 valid:
+    batch_size: 1
+
+test:
     batch_size: 1
 
 remarks: Run on small set to see if model overfits.

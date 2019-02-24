@@ -5,11 +5,13 @@ import nibabel as nib
 import multiprocessing as mp
 import torchvision
 import torchvision.transforms as T
+import pandas as pd
 
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils.loader import invalid_collate
 from utils.transforms import OrientFSImage, PadPreprocImage
+from sklearn.preprocessing import LabelEncoder
 
 from pdb import set_trace
 
@@ -37,12 +39,15 @@ class ADNIAutoEncDataset(Dataset):
                                          [ T.ToTensor(),
                                            OrientFSImage() ])
         mode = kwargs.get("mode", "all")
+
         valid_split = kwargs.get("valid_split", 0.2)
+        test_split = kwargs.get("test_split", 0.0)
+
         limit = kwargs.get("limit", -1)
 
         self._check_mapping_file(mapping_path)
         self._check_valid_mode(mode)
-        self._check_valid_split(valid_split)
+        self._check_valid_split(valid_split, test_split)
 
         self.preproc_transforms = T.Compose(preproc_transforms)
         self.postproc_transforms = T.Compose(postproc_transforms)
@@ -53,7 +58,7 @@ class ADNIAutoEncDataset(Dataset):
         self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
 
         self._set_size_limit(limit)
-        self.df = self._split_data(valid_split, mode)
+        self.df = self._split_data(self.df, valid_split, test_split, mode)
 
     def __len__(self):
         return len(self.df.index)
@@ -156,13 +161,20 @@ class ADNIAutoEncDataset(Dataset):
                 .format(mapping_path))
 
     def _check_valid_mode(self, mode):
-        if mode not in ["train", "valid", "all"]:
+        if mode not in ["train", "valid", "test", "all"]:
             raise Exception("Invalid mode: {}".format(mode))
 
-    def _check_valid_split(self, split):
-        if not 0.0 < split < 1.0:
+    def _check_valid_split(self, valid_split, test_split):
+        if not 0.0 < valid_split < 1.0:
             raise Exception("Invalid validation split percentage: {}"
-                                .format(split))
+                                .format(valid_split))
+
+        if not 0.0 < test_split < 1.0:
+            raise Exception("Invalid test split percentage: {}"
+                                .format(test_split))
+
+        if (valid_split + test_split) > 1.0:
+            raise Exception("valid_split + test_split ({}) is greater than 1.0".format(valid_split + test_split))
 
     def _set_size_limit(self, limit):
         '''
@@ -178,16 +190,30 @@ class ADNIAutoEncDataset(Dataset):
         else:
             print("Limiting total dataset size to: {}".format(limit))
 
-    def _split_data(self, valid_split, mode):
-        train_split = 1 - valid_split
-        num_train = int(len(self.df.index) * train_split)
+    def _split_data(self, df, valid_split, test_split, mode):
+        train_split = 1 - valid_split - test_split
+        num_train = int(len(df.index) * train_split)
+        num_valid = int(len(df.index) * valid_split)
+        num_test = int(len(df.index) * test_split)
 
         if mode == "train":
-            return self.df.iloc[:num_train].reset_index()
+            return df[:num_train].reset_index()
         elif mode == "valid":
-            return self.df.iloc[num_train:].reset_index()
+            start = num_train
+            end = start + num_valid
+            return df[start:end].reset_index()
+        elif mode == "test":
+            start = num_train + num_valid
+            end = start + num_test
+            return df[start:end].reset_index()
         else:
-            return self.df
+            return df[:]
+
+    def _get_label_encoder(self, labels):
+        encoder = LabelEncoder()
+        encoder.fit(labels)
+
+        return encoder
 
 class ADNIClassDataset(ADNIAutoEncDataset):
     '''
@@ -196,7 +222,9 @@ class ADNIClassDataset(ADNIAutoEncDataset):
     Args:
         **kwargs:
             transforms (List): A list of torchvision.transforms functions, see https://pytorch.org/docs/stable/torchvision/transforms.html for more information.
+
             mode (string): "train" for training split, "valid" for validation split, and "all" for the whole set, defaults to "all".
+
             valid_split (float): Percentage of data reserved for validation, ignored if mode is set to "train" or "all, defaults to 0.2.
     '''
     def __init__(self, **kwargs):
@@ -206,12 +234,57 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         super().__init__(**kwargs)
 
         valid_split = kwargs.get("valid_split", 0.2)
+        test_split = kwargs.get("test_split", 0.0)
+        self.task = kwargs.get("task", "classify")
+
+        if self.task not in ["classify", "pretrain"]:
+            raise Exception("Task {} not recognized.".format(self.task))
 
         self.df = self._filter_data()
-        self.df = self._split_data(valid_split, mode)
+
+        # Change LMCI and EMCI to MCI
+        target = (self.df.label == "LMCI") | (self.df.label == "EMCI")
+        self.df.loc[target, "label"] = "MCI"
+
+        # Setup labels
+        labels = self.df.label[self.df.label.notnull()].unique()
+        self.label_encoder = self._get_label_encoder(labels)
+
+        # Split data
+
+        # AD = 218, MCI = 632, and CN = 283
+        self.ad = self.df[ self.df.label == "AD" ]
+        self.mci = self.df[ self.df.label == "MCI" ]
+        self.cn = self.df[ self.df.label == "CN" ]
+        print("Image distribution over classes:")
+        print("\tAD: {}\n\tMCI: {}\n\tCN: {}".format(
+            len(self.ad.index), len(self.mci.index), len(self.cn.index)))
+
+        set_size = 180
+        if self.task == "classify":
+            ad = self._split_data(self.ad[:set_size],
+                                valid_split,
+                                test_split,
+                                mode)
+            mci = self._split_data(self.mci[:set_size],
+                                valid_split,
+                                test_split,
+                                mode)
+            cn = self._split_data(self.cn[:set_size],
+                                valid_split,
+                                test_split,
+                                mode)
+            self.df = pd.concat([ad, mci, cn])
+        elif self.task == "pretrain":
+            self.df = pd.concat([
+                self.ad[set_size:],
+                self.mci[set_size:],
+                self.cn[set_size:]
+            ])
 
     def __getitem__(self, idx):
-        postproc_path = self._get_paths(idx)[1]
+        postproc_path = self.df.loc[idx].postproc_path
+        label = self._get_label(idx)
 
         try:
             postproc_img = nib.load(postproc_path) \
@@ -229,10 +302,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         # Add a "channel" dimension
         postproc_img = postproc_img.unsqueeze(0)
 
-        # Find the label for corresponding patient data
-        output = self._get_label(idx)
-
-        return postproc_img, output
+        return postproc_img, label
 
     def _get_label(self, idx):
         '''
@@ -244,15 +314,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             string: AD/MCI/NC
         '''
         label = self.df.label.iloc[idx]
-
-        if label == "AD":
-            return 2
-        elif label == "LMCI":
-            return 1
-        elif label == "CN":
-            return 0
-        else:
-            raise Exception("Unrecognizable label {}.".format(label))
+        return self.label_encoder.transform(label)[0]
 
     def _filter_data(self):
         '''
@@ -267,7 +329,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         return self.df[has_labels & has_paths]
 
 if __name__ == "__main__":
-    dataset = ADNIAutoEncDataset()
+    # dataset = ADNIAutoEncDataset()
 
     # Get the unique shapes for preprocessed and post-processed images
     # shapes = dataset.process_images(dataset._get_dims)
@@ -285,3 +347,7 @@ if __name__ == "__main__":
     # (124, 256, 256) = 1
     # (162, 256, 256) = 2
     # postproc_shapes -> [(256, 256, 256)]
+
+    # Figure out the mean and std of post-processed images
+    # dataset = ADNIClassDataset(mode="all")
+    pass

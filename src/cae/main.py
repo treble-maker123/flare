@@ -34,9 +34,21 @@ def main(config_path, run_id):
     num_epochs = config["train"]["num_epochs"]
     engine = Engine(config)
 
+    pretrain_history = []
     train_history = []
     valid_history = []
     lowest_losses = [float("inf")] * 5
+
+    if not config["pretrain"]["skip"]:
+        for epoch in range(config["pretrain"]["num_epochs"]):
+            epoch_start = time()
+            print("Starting pretraining epoch {}:".format(epoch + 1))
+
+            pretrain_result = engine.pretrain()
+            pretrain_history.append(pretrain_result)
+
+            print("\tAverage training loss: {}"
+                .format(pretrain_result["average_loss"]))
 
     for epoch in range(num_epochs):
         epoch_start = time()
@@ -48,8 +60,12 @@ def main(config_path, run_id):
 
         valid_result = engine.validate()
         valid_history.append(valid_result)
-        print("\tAverage validation loss: {}"
-                .format(valid_result["average_loss"]))
+        num_correct = valid_result["num_correct"]
+        num_total = valid_result["num_total"]
+        percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+        print("\tAverage validation loss: {}; {}/{} ({}%) correct."
+                .format(valid_result["average_loss"],
+                        num_correct, num_total, percent))
 
         # Five lowest loss models are saved
         loss_idx = 0
@@ -69,6 +85,14 @@ def main(config_path, run_id):
         elapsed_time = time() - epoch_start
         print("Epoch {} completed in {} seconds."
                 .format(epoch, round(elapsed_time)))
+
+    print("Starting test...")
+    test_result = engine.test()
+    num_correct = test_result["num_correct"]
+    num_total = test_result["num_total"]
+    percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+    print("Final test results: {}/{} ({}%)".format(num_correct, num_total,
+                                                   percent))
 
     print("Experiment finished in {} seconds."
             .format(round(time() - main_start)))
