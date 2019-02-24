@@ -10,11 +10,8 @@ from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
-<<<<<<< HEAD
 from models.hosseini import Hosseini
-=======
 from models.ae_cnn import AE_CNN
->>>>>>> 47a4c941917428d5d919b7fd62404f5cfc43f083
 
 from utils.loader import invalid_collate
 
