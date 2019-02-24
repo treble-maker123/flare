@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from pdb import set_trace
+
 class Hosseini(nn.Module):
     '''
     Model after https://arxiv.org/pdf/1607.00455.pdf
@@ -9,7 +11,7 @@ class Hosseini(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
 
-        num_kernels = kwargs.get("num_kernels", [16, 32, 64])
+        num_kernels = kwargs.get("num_kernels", [16, 32, 64, 128])
         num_classes = kwargs.get("num_classes", 3)
 
         self.encoder_layers = [
@@ -23,24 +25,26 @@ class Hosseini(nn.Module):
             # input 62x62x62, output 30x30x30
             ConvolutionBlock(num_kernels[1], num_kernels[2], kernel_size=3,
                              conv_stride=1, max_pool=True, pool_stride=2,
-                             relu=True)
+                             relu=True),
+            # input 30x30x30, output 14x14x14
+            ConvolutionBlock(num_kernels[2], num_kernels[3], kernel_size=3,
+                             conv_stride=1, max_pool=True, pool_stride=2,
+                             relu=True),
         ]
 
         classification_layers = [
-            nn.Linear(30*30*30*num_kernels[-1], 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(14*14*14*num_kernels[-1], 64),
             nn.ReLU(True),
-            nn.Linear(1024, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(64, 32),
             nn.ReLU(True),
-            nn.Linear(256, num_classes)
+            nn.Linear(32, num_classes)
         ]
 
         self.encode = nn.Sequential(*self.encoder_layers)
         self.classify = nn.Sequential(*classification_layers)
 
     def forward(self, x):
-        hidden = self.encode(x)
+        hidden = self.encode(x).view(len(x), -1)
         return self.classify(hidden)
 
     def reconstruct(self, x):
@@ -50,24 +54,36 @@ class Hosseini(nn.Module):
         conv1 = self.encoder_layers[0].block[0]
         conv2 = self.encoder_layers[1].block[0]
         conv3 = self.encoder_layers[2].block[0]
+        conv4 = self.encoder_layers[3].block[0]
+
         # Tie the weights
-        deconv1 = F.conv_transpose3d(hidden, conv3.weight,
+        # input 14x14x14, output 30x30x30
+        deconv1 = F.conv_transpose3d(hidden, conv4.weight,
+                                     bias=conv3.bias, stride=2,
+                                     output_padding=1)
+        # input 30x30x30, output 62x62x62
+        F.relu(deconv1, inplace=True)
+        deconv2 = F.conv_transpose3d(deconv1, conv3.weight,
                                      bias=conv2.bias, stride=2,
                                      output_padding=1)
-        F.relu(deconv1, inplace=True)
-        deconv2 = F.conv_transpose3d(deconv1, conv2.weight,
-                                     bias=conv1.bias, stride=2,
-                                     output_padding=2)
         F.relu(deconv2, inplace=True)
-        deconv3 = F.conv_transpose3d(deconv2, conv1.weight, stride=2,
+        # input 62x62x62, output 127x127x127
+        deconv3 = F.conv_transpose3d(deconv2, conv2.weight,
+                                     bias=conv1.bias, stride=2,
+                                     output_padding=1)
+        padded_3 = F.pad(deconv3, (1, 0, 1, 0, 1, 0),
+                       mode="constant", value=0)
+        F.relu(padded_3, inplace=True)
+        # input 127x127x127, output 256x256x256
+        deconv4 = F.conv_transpose3d(padded_3, conv1.weight, stride=2,
                                      output_padding=1)
 
-        return F.sigmoid(deconv3)
+        return torch.sigmoid(deconv4)
 
     def loss(self, x, y):
         return F.cross_entropy(x, y)
 
-    def reconstruct_loss(self, x, y, hidden=None):
+    def reconstruction_loss(self, x, y, hidden=None):
         loss = F.mse_loss(x, y)
 
         # sparsity constraint

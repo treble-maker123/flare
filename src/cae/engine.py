@@ -22,7 +22,7 @@ class Engine:
 
         self._config = config
         self._setup_device(device)
-        self._setup_model(model_path)
+        self.load_model(model_path)
         self._setup_data()
 
     def pretrain(self):
@@ -42,7 +42,7 @@ class Engine:
 
         losses = []
 
-        for num_iter, (x, _) in enumerate(self.pretrain_loader):
+        for num_iter, (x, y) in enumerate(self.pretrain_loader):
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
@@ -140,9 +140,9 @@ class Engine:
                 else:
                     loss = model.loss(pred, y)
 
-                if y.dim == 1: # classification
+                if y.dim() == 1: # classification
                     pred = pred.argmax(dim=1)
-                    num_correct += (y == pred).sum()
+                    num_correct += (y == pred).sum().item()
                     num_total += len(y)
 
                 losses.append(loss.item())
@@ -178,9 +178,9 @@ class Engine:
                 else:
                     loss = model.loss(pred, y)
 
-                if y.dim == 1: # classification
+                if y.dim() == 1: # classification
                     pred = pred.argmax(dim=1)
-                    num_correct += (y == pred).sum()
+                    num_correct += (y == pred).sum().item()
                     num_total += len(y)
 
                 losses.append(loss.item())
@@ -224,7 +224,7 @@ class Engine:
             print("Running in CPU mode.")
             self._device = torch.device("cpu")
 
-    def _setup_model(self, model_path=None):
+    def load_model(self, model_path=None):
         config = self._config
         model_class = config["model"]['class']
 

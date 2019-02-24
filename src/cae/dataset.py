@@ -246,12 +246,8 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         self.ad = self.df[ self.df.label == "AD" ]
         self.mci = self.df[ self.df.label == "MCI" ]
         self.cn = self.df[ self.df.label == "CN" ]
-        print("Image distribution over classes for {}/{}:"
-                .format(self.task, mode))
-        print("\tAD: {}\n\tMCI: {}\n\tCN: {}".format(
-            len(self.ad.index), len(self.mci.index), len(self.cn.index)))
 
-        set_size = 180
+        set_size = 200
         if self.task == "classify":
             ad = self._split_data(self.ad[:set_size],
                                 valid_split,
@@ -265,6 +261,8 @@ class ADNIClassDataset(ADNIAutoEncDataset):
                                 valid_split,
                                 test_split,
                                 mode)
+            print("Class distribution for {}/{}: AD - {}, MCI - {}, CN - {}"
+                    .format(mode, self.task, len(ad.index), len(mci.index), len(cn.index)))
             self.df = pd.concat([ad, mci, cn])
         elif self.task == "pretrain":
             self.df = pd.concat([

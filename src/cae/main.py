@@ -2,6 +2,7 @@ import os
 import yaml
 import uuid
 import torch
+import pickle
 
 from time import time
 from argparse import ArgumentParser
@@ -52,7 +53,7 @@ def main(config_path, run_id):
 
     for epoch in range(num_epochs):
         epoch_start = time()
-        print("Starting epoch {}:".format(epoch + 1))
+        print("Starting training epoch {}:".format(epoch + 1))
         train_result = engine.train()
         train_history.append(train_result)
         print("\tAverage training loss: {}"
@@ -62,23 +63,21 @@ def main(config_path, run_id):
         valid_history.append(valid_result)
         num_correct = valid_result["num_correct"]
         num_total = valid_result["num_total"]
-        percent = round(((num_correct * 1.0) / num_total) * 100, 2)
-        print("\tAverage validation loss: {}; {}/{} ({}%) correct."
-                .format(valid_result["average_loss"],
-                        num_correct, num_total, percent))
+
+        print("\tAverage validation loss: {}"
+                .format(valid_result["average_loss"]))
+        if num_total > 0:
+            percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+            print("\t Accracy: {}/{} ({}%) correct."
+                    .format(num_correct, num_total, percent))
 
         # Five lowest loss models are saved
-        loss_idx = 0
-        current_highest = lowest_losses[0]
-        # Find the highest error entry to be replaced
-        for idx, loss in enumerate(lowest_losses):
-            if loss > current_highest:
-                loss_idx = idx
-                current_highest = loss
+        current_highest = max(lowest_losses)
+        highest_loss_idx = lowest_losses.index(max(lowest_losses))
 
         if valid_result["average_loss"] < current_highest:
-            lowest_losses[loss_idx] = valid_result["average_loss"]
-            file_name = "weights/{}/{}.pt".format(run_id, loss_idx)
+            lowest_losses[highest_loss_idx] = valid_result["average_loss"]
+            file_name = "weights/{}/{}.pt".format(run_id, highest_loss_idx)
             engine.save_model(file_name)
             print("\tModel saved as {}.".format(file_name))
 
@@ -87,12 +86,28 @@ def main(config_path, run_id):
                 .format(epoch, round(elapsed_time)))
 
     print("Starting test...")
+    print("Top 5 lowest losses: {}".format(lowest_losses))
+    lowest_loss_idx = lowest_losses.index(min(lowest_losses))
+    file_name = "weights/{}/{}.pt".format(run_id, lowest_loss_idx)
+    print("Loading model with lowest loss for testing.")
+    engine.load_model()
     test_result = engine.test()
     num_correct = test_result["num_correct"]
     num_total = test_result["num_total"]
-    percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+    test_percent = round(((num_correct * 1.0) / num_total) * 100, 2)
     print("Final test results: {}/{} ({}%)".format(num_correct, num_total,
-                                                   percent))
+                                                   test_percent))
+
+    print("Writing statistics to file")
+    statistics = {
+        "pretrain_history": pretrain_history,
+        "train_history": train_history,
+        "valid_history": valid_history,
+        "lowest_losses": lowest_losses,
+        "test_accuracy": test_percent
+    }
+    with open("outputs/stats/{}.pickle".format(run_id), "wb") as file:
+        pickle.dump(statistics, file)
 
     print("Experiment finished in {} seconds."
             .format(round(time() - main_start)))

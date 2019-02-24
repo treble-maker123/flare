@@ -1,32 +1,33 @@
 use_gpu: True
+task: classify
 
 data:
     set_name: classify
-    max_workers: 0
-    valid_split: 0.1
-    test_split: 0.1
-    limit: 10
+    max_workers: 6
+    valid_split: 0.2
+    test_split: 0.2
+    limit: -1
 
 model:
     class: hosseini
 
 pretrain:
     skip: False
-    num_epochs: 10
+    num_epochs: 100
 
 train:
-    num_epochs: 24
+    num_epochs: 200
     optim:
         learn_rate: 0.1
         weight_decay: 0.0
-    batch_size: 2
-    print_iter: 10
+    batch_size: 4
+    print_iter: 1
     save_model: True
 
 valid:
-    batch_size: 2
+    batch_size: 4
 
 test:
-    batch_size: 2
+    batch_size: 4
 
-remarks: Run on small set to see if model overfits.
+remarks: Running on the entire set.
