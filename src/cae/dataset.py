@@ -328,6 +328,67 @@ class ADNIClassDataset(ADNIAutoEncDataset):
 
         return self.df[has_labels & has_paths]
 
+class ADNIAeCnnDataset(ADNIClassDataset):
+    def __getitem__(self, idx):
+        postproc_path = self.df.loc[idx].postproc_path
+        label = self._get_label(idx)
+        try:
+            postproc_img = nib.load(postproc_path) \
+                              .get_fdata() \
+                              .squeeze()
+            if (np.isnan(postproc_img).sum() > 0):
+                raise Exception("Corrupted image {}.".format(idx))
+        except Exception as e:
+            print("Failed to load #{}, skipping.".format(idx))
+            return None, None
+        postproc_img = self.postproc_transforms(postproc_img)
+        # Add a "channel" dimension
+        postproc_img = postproc_img.unsqeeze(0)
+        patch_samples = getRandomPatches(postproc_img)
+        #patch_dict = {"patch": patch_samples}
+        return patch_samples[0]
+
+    def customToTensor(pic):
+        if isinstance(pic, np.ndarray):
+            img = torch.from_numpy(pic)
+            img = torch.unsqueeze(img,0)
+            # backward compatibility
+            return img.float()
+
+    def getRandomPatches(image_array):
+        patches = []
+        mean_ax = np.ndarray.mean(image_array, axis = NON_AX)
+        mean_cor = np.ndarray.mean(image_array, axis = NON_COR)
+        mean_sag = np.ndarray.mean(image_array, axis = NON_SAG)
+
+        first_ax = int(round(list(mean_ax).index(filter(lambda x: x>0, mean_ax)[0])))
+        last_ax = int(round(list(mean_ax).index(filter(lambda x: x>0, mean_ax)[-1])))
+        first_cor = int(round(list(mean_cor).index(filter(lambda x: x>0, mean_cor)[0])))
+        last_cor = int(round(list(mean_cor).index(filter(lambda x: x>0, mean_cor)[-1])))
+        first_sag = int(round(list(mean_sag).index(filter(lambda x: x>0, mean_sag)[0])))
+        last_sag = int(round(list(mean_sag).index(filter(lambda x: x>0, mean_sag)[-1])))
+
+        first_ax = first_ax + 20
+        last_ax = last_ax - 5
+
+        ax_samples = [random.randint(first_ax - 3, last_ax - 3) for r in xrange(10000)]
+        cor_samples = [random.randint(first_cor - 3, last_cor - 3) for r in xrange(10000)]
+        sag_samples = [random.randint(first_sag - 3, last_sag - 3) for r in xrange(10000)]
+
+        for i in range(1): #000):
+            ax_i = ax_samples[i]
+            cor_i = cor_samples[i]
+            sag_i = sag_samples[i]
+            patch = image_array[ax_i-3:ax_i+4, cor_i-3:cor_i+4, sag_i-3:sag_i+4]
+            while (np.ndarray.sum(patch) == 0):
+                ax_ni = random.randint(first_ax - 3, last_ax - 4)
+                cor_ni = random.randint(first_cor - 3, last_cor - 4)
+                sag_ni = random.randint(first_sag - 3, last_sag - 4)
+                patch = image_array[ax_ni-3:ax_ni+4, cor_ni-3:cor_ni+4, sag_ni-3:sag_ni+4]
+            patch = customToTensor(patch)
+            patches.append(patch)
+        return patches
+
 if __name__ == "__main__":
     # dataset = ADNIAutoEncDataset()
 

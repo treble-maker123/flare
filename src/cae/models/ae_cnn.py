@@ -6,7 +6,7 @@ class AE_CNN(nn.Module):
     """
     Sparse Autoencoder + Convolution Neural Network Classifier
     """
-    def __init__(self, n_filters, dropout=0, n_classes=2):
+    def __init__(self, n_filters=150, dropout=0, n_classes=2):
         super(AE_CNN, self).__init__()
         self.downsample = nn.MaxPool3d(2, 2)
         self.encode = nn.Conv3d(1, n_filters, 5)
