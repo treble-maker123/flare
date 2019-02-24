@@ -6,11 +6,15 @@ import multiprocessing as mp
 from torch.utils.data import DataLoader
 from pdb import set_trace
 
-from dataset import ADNIAutoEncDataset, ADNIClassDataset
+from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
+<<<<<<< HEAD
 from models.hosseini import Hosseini
+=======
+from models.ae_cnn import AE_CNN
+>>>>>>> 47a4c941917428d5d919b7fd62404f5cfc43f083
 
 from utils.loader import invalid_collate
 
@@ -239,6 +243,9 @@ class Engine:
         elif model_class == "hosseini":
             print("Using Hosseini model.")
             self._model = Hosseini()
+        elif model_class == "ae_cnn_patches":
+            print("Using ae cnn pathces model.")
+            self._model = AE_CNN()
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
 
@@ -316,7 +323,11 @@ class Engine:
             self.train_dataset = ADNIClassDataset(**train_dataset_params)
             self.valid_dataset = ADNIClassDataset(**valid_dataset_params)
             self.test_dataset = ADNIClassDataset(**test_dataset_params)
-
+        elif self._config["data"]["set_name"] == "ae_cnn_patches":
+            self.pretrain_dataset = ADNIAeCnnDataset(**pretrain_dataset_params)
+            self.train_dataset = ADNIAeCnnDataset(**train_dataset_params)
+            self.valid_dataset = ADNIAeCnnDataset(**valid_dataset_params)
+            self.test_dataset = ADNIAeCnnDataset(**test_dataset_params)
         self.pretrain_loader = DataLoader(self.pretrain_dataset,
                                           **pretrain_loader_params)
         self.train_loader = DataLoader(self.train_dataset,
