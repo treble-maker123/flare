@@ -10,6 +10,7 @@ from dataset import ADNIAutoEncDataset, ADNIClassDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
+from models.ae_cnn import AE_CNN
 
 from utils.loader import invalid_collate
 
