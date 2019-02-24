@@ -30,7 +30,8 @@ def main(config_path, run_id):
     mkdir("outputs/errors")
     mkdir("outputs/logs")
     mkdir("outputs/stats")
-    mkdir("weights/{}".format(run_id))
+    mkdir("outputs/weights")
+    mkdir("outputs/weights/{}".format(run_id))
 
     num_epochs = config["train"]["num_epochs"]
     engine = Engine(config)
@@ -40,6 +41,7 @@ def main(config_path, run_id):
     valid_history = []
     lowest_losses = [float("inf")] * 5
 
+    # PRETRAINING
     if not config["pretrain"]["skip"]:
         for epoch in range(config["pretrain"]["num_epochs"]):
             epoch_start = time()
@@ -53,12 +55,15 @@ def main(config_path, run_id):
 
     for epoch in range(num_epochs):
         epoch_start = time()
+
+        # TRAINING
         print("Starting training epoch {}:".format(epoch + 1))
         train_result = engine.train()
         train_history.append(train_result)
         print("\tAverage training loss: {}"
                 .format(train_result["average_loss"]))
 
+        # VALIDATION
         valid_result = engine.validate()
         valid_history.append(valid_result)
         num_correct = valid_result["num_correct"]
@@ -68,16 +73,18 @@ def main(config_path, run_id):
                 .format(valid_result["average_loss"]))
         if num_total > 0:
             percent = round(((num_correct * 1.0) / num_total) * 100, 2)
-            print("\t Accracy: {}/{} ({}%) correct."
+            print("\tAccuracy: {}/{} ({}%) correct."
                     .format(num_correct, num_total, percent))
 
+        # CHECKPOINT
         # Five lowest loss models are saved
         current_highest = max(lowest_losses)
         highest_loss_idx = lowest_losses.index(max(lowest_losses))
 
         if valid_result["average_loss"] < current_highest:
             lowest_losses[highest_loss_idx] = valid_result["average_loss"]
-            file_name = "weights/{}/{}.pt".format(run_id, highest_loss_idx)
+            file_name = "outputs/weights/{}/{}.pt" \
+                            .format(run_id, highest_loss_idx)
             engine.save_model(file_name)
             print("\tModel saved as {}.".format(file_name))
 
@@ -85,10 +92,12 @@ def main(config_path, run_id):
         print("Epoch {} completed in {} seconds."
                 .format(epoch, round(elapsed_time)))
 
+    # TESTING
     print("Starting test...")
     print("Top 5 lowest losses: {}".format(lowest_losses))
     lowest_loss_idx = lowest_losses.index(min(lowest_losses))
-    file_name = "weights/{}/{}.pt".format(run_id, lowest_loss_idx)
+    file_name = "outputs/weights/{}/{}.pt" \
+                    .format(run_id, lowest_loss_idx)
     print("Loading model with lowest loss for testing.")
     engine.load_model()
     test_result = engine.test()

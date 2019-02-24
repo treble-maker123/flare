@@ -6,28 +6,28 @@ data:
     max_workers: 6
     valid_split: 0.2
     test_split: 0.2
-    limit: -1
+    limit: 20
 
 model:
-    class: hosseini
+    class: hosseini_three_layer
 
 pretrain:
     skip: False
-    num_epochs: 100
+    num_epochs: 1
 
 train:
-    num_epochs: 200
+    num_epochs: 1
     optim:
         learn_rate: 0.1
         weight_decay: 0.0
-    batch_size: 4
+    batch_size: 2
     print_iter: 1
     save_model: True
 
 valid:
-    batch_size: 4
+    batch_size: 2
 
 test:
-    batch_size: 4
+    batch_size: 2
 
-remarks: Running on the entire set.
+remarks: Full run with the set.
