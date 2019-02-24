@@ -6,17 +6,17 @@ data:
     max_workers: 6
     valid_split: 0.2
     test_split: 0.2
-    limit: 20
+    limit: -1
 
 model:
     class: hosseini_three_layer
 
 pretrain:
     skip: False
-    num_epochs: 1
+    num_epochs: 100
 
 train:
-    num_epochs: 1
+    num_epochs: 200
     optim:
         learn_rate: 0.1
         weight_decay: 0.0

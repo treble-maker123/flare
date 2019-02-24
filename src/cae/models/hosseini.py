@@ -56,27 +56,27 @@ class Hosseini(nn.Module):
         conv3 = self.encoder_layers[2].block[0]
         conv4 = self.encoder_layers[3].block[0]
 
-        # Tie the weights
+        # Tie the flipped weights
         # input 14x14x14, output 30x30x30
-        deconv1 = F.conv_transpose3d(hidden, conv4.weight,
+        deconv1 = F.conv_transpose3d(hidden, conv4.weight.flip(0,1,3,2,4),
                                      bias=conv3.bias, stride=2,
                                      output_padding=1)
         # input 30x30x30, output 62x62x62
         F.relu(deconv1, inplace=True)
-        deconv2 = F.conv_transpose3d(deconv1, conv3.weight,
+        deconv2 = F.conv_transpose3d(deconv1, conv3.weight.flip(0,1,3,2,4),
                                      bias=conv2.bias, stride=2,
                                      output_padding=1)
         F.relu(deconv2, inplace=True)
         # input 62x62x62, output 127x127x127
-        deconv3 = F.conv_transpose3d(deconv2, conv2.weight,
+        deconv3 = F.conv_transpose3d(deconv2, conv2.weight.flip(0,1,3,2,4),
                                      bias=conv1.bias, stride=2,
                                      output_padding=1)
         padded_3 = F.pad(deconv3, (1, 0, 1, 0, 1, 0),
                        mode="constant", value=0)
         F.relu(padded_3, inplace=True)
         # input 127x127x127, output 256x256x256
-        deconv4 = F.conv_transpose3d(padded_3, conv1.weight, stride=2,
-                                     output_padding=1)
+        deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
+                                     stride=2, output_padding=1)
 
         return torch.sigmoid(deconv4)
 
@@ -147,20 +147,20 @@ class HosseiniThreeLayer(nn.Module):
 
         # Tie the weights
         # input 30x30x30, output 62x62x62
-        deconv2 = F.conv_transpose3d(hidden, conv3.weight,
+        deconv2 = F.conv_transpose3d(hidden, conv3.weight.flip(0,1,3,2,4),
                                      bias=conv2.bias, stride=2,
                                      output_padding=1)
         F.relu(deconv2, inplace=True)
         # input 62x62x62, output 127x127x127
-        deconv3 = F.conv_transpose3d(deconv2, conv2.weight,
+        deconv3 = F.conv_transpose3d(deconv2, conv2.weight.flip(0,1,3,2,4),
                                      bias=conv1.bias, stride=2,
                                      output_padding=1)
         padded_3 = F.pad(deconv3, (1, 0, 1, 0, 1, 0),
                        mode="constant", value=0)
         F.relu(padded_3, inplace=True)
         # input 127x127x127, output 256x256x256
-        deconv4 = F.conv_transpose3d(padded_3, conv1.weight, stride=2,
-                                     output_padding=1)
+        deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
+                                     stride=2, output_padding=1)
 
         return torch.sigmoid(deconv4)
 
