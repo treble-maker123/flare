@@ -3,25 +3,24 @@ task: classify
 
 data:
     set_name: classify
-    max_workers: 6
+    max_workers: 4
     valid_split: 0.2
     test_split: 0.2
     limit: -1
 
 model:
-    class: hosseini_three_layer
+    class: hosseini_deep
 
 pretrain:
-    skip: False
-    num_epochs: 100
+    num_epochs: 0
 
 train:
-    num_epochs: 200
+    num_epochs: 100
     optim:
-        learn_rate: 0.1
-        weight_decay: 0.0
+        learn_rate: 0.01
+        weight_decay: 0.2
     batch_size: 2
-    print_iter: 1
+    print_iter: 5
     save_model: True
 
 valid:
@@ -30,4 +29,4 @@ valid:
 test:
     batch_size: 2
 
-remarks: Full run with the set.
+remarks: Run with full dataset, 12-layer network with residual connection.

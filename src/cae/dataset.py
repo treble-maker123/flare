@@ -61,11 +61,11 @@ class ADNIAutoEncDataset(Dataset):
     def __len__(self):
         if self.limit == -1:
             return len(self.df.index)
-        elif 0 < self.limit < len(self.df.index):
-            return self.limit
+        elif 0 <= self.limit:
+            return min(self.limit, len(self.df.index))
         else:
-            raise Exception("Invalid dataset size limit set: {}"
-                            .format(self.limit))
+            raise Exception("Invalid dataset size limit set: {}, set size: {}"
+                            .format(self.limit, len(self.df.index)))
 
     def __getitem__(self, idx):
         preproc_path, postproc_path = self._get_paths(idx)
@@ -247,7 +247,11 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         self.mci = self.df[ self.df.label == "MCI" ]
         self.cn = self.df[ self.df.label == "CN" ]
 
-        set_size = 200
+        if self.limit == -1:
+            set_size = 200
+        else:
+            set_size = self.limit
+
         if self.task == "classify":
             ad = self._split_data(self.ad[:set_size],
                                 valid_split,

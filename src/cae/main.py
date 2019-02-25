@@ -42,7 +42,7 @@ def main(config_path, run_id):
     lowest_losses = [float("inf")] * 5
 
     # PRETRAINING
-    if not config["pretrain"]["skip"]:
+    if config["pretrain"]["num_epochs"] > 0:
         for epoch in range(config["pretrain"]["num_epochs"]):
             epoch_start = time()
             print("Starting pretraining epoch {}:".format(epoch + 1))
@@ -52,6 +52,8 @@ def main(config_path, run_id):
 
             print("\tAverage training loss: {}"
                 .format(pretrain_result["average_loss"]))
+    else:
+        print("Skipping pretraining.")
 
     for epoch in range(num_epochs):
         epoch_start = time()
@@ -90,7 +92,7 @@ def main(config_path, run_id):
 
         elapsed_time = time() - epoch_start
         print("Epoch {} completed in {} seconds."
-                .format(epoch, round(elapsed_time)))
+                .format(epoch + 1, round(elapsed_time)))
 
     # TESTING
     print("Starting test...")

@@ -10,7 +10,7 @@ from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
-from models.hosseini import Hosseini, HosseiniThreeLayer
+from models.hosseini import Hosseini, HosseiniThreeLayer, HosseiniSimple, HosseiniDeep
 from models.ae_cnn import AE_CNN
 
 from utils.loader import invalid_collate
@@ -243,6 +243,12 @@ class Engine:
         elif model_class == "hosseini_three_layer":
             print("Using Three-Layer Hosseini model.")
             self._model = HosseiniThreeLayer()
+        elif model_class == "hosseini_simple":
+            print("Using simple Hosseini model with two-layer autoencoder.")
+            self._model = HosseiniSimple()
+        elif model_class == "hosseini_deep":
+            print("Using deep Hosseini model.")
+            self._model = HosseiniDeep()
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn pathces model.")
             self._model = AE_CNN()
