@@ -34,3 +34,23 @@ class PadPreprocImage(object):
                              **pad_params)
 
         return padded_image
+
+class RangeNormalization(object):
+    '''
+    Normalize the pixel values to between 0 and 1.
+    '''
+    def __init__(self):
+        pass
+
+    def __call__(self, image):
+        return image / image.max()
+
+class MeanStdNormalization(object):
+    '''
+    Normalize the pixel values to between -1 and 1 by subtracting the mean and dividing by the standard deviation.
+    '''
+    def __init__(self):
+        pass
+
+    def __call__(self, image):
+        return (image - image.mean()).std()

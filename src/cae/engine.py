@@ -271,28 +271,32 @@ class Engine:
             "task": "pretrain",
             "valid_split": 0.0,
             "test_split": 0.0,
-            "limit": config["data"]["limit"]
+            "limit": config["data"]["limit"],
+            "config": config
         }
         train_dataset_params = {
             "mode": "train",
             "task": "classify",
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
-            "limit": config["data"]["limit"]
+            "limit": config["data"]["limit"],
+            "config": config
         }
         valid_dataset_params = {
             "mode": "valid",
             "task": "classify",
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
-            "limit": config["data"]["limit"]
+            "limit": config["data"]["limit"],
+            "config": config
         }
         test_dataset_params = {
             "mode": "test",
             "task": "classify",
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
-            "limit": config["data"]["limit"]
+            "limit": config["data"]["limit"],
+            "config": config
         }
 
         pretrain_loader_params = {

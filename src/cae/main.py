@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--config", type=str, default="config/default.yaml")
     parser.add_argument("--run_id", type=str,
-                                    default=uuid.uuid4().hex.upper()[0:6])
+                                    default=uuid.uuid4().hex.upper()[0:4])
 
     args = parser.parse_args()
     main(args.config, args.run_id)

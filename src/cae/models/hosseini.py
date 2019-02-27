@@ -116,13 +116,13 @@ class HosseiniThreeLayer(nn.Module):
                              relu=True),
         ]
 
-        # input 30x30x30, output 4x4x4
+        # input 30x30x30, output 5x5x5
         self.conv = ConvolutionBlock(num_kernels[2], num_kernels[3],
                                      kernel_size=3, conv_stride=2,
                                      max_pool=True, pool_stride=3, relu=True)
 
         classification_layers = [
-            nn.Linear(4*4*4*num_kernels[-1], 128),
+            nn.Linear(5*5*5*num_kernels[-1], 128),
             nn.ReLU(True),
             nn.Linear(128, 32),
             nn.ReLU(True),

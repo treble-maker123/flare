@@ -1,5 +1,12 @@
 use_gpu: True
 task: classify
+# path to the label file, relative to the src/cae/ path.
+# label_path: outputs/files_manifest.pickle
+# image_col: postproc_path
+# label_col: label
+label_path: outputs/surfer_labels.pckl
+image_col: PROC_IMGPATH
+label_col: DX
 
 data:
     set_name: classify
@@ -18,15 +25,15 @@ train:
     num_epochs: 100
     optim:
         learn_rate: 0.01
-        weight_decay: 0.2
-    batch_size: 2
-    print_iter: 5
+        weight_decay: 0.1
+    batch_size: 4
+    print_iter: 1
     save_model: True
 
 valid:
-    batch_size: 2
+    batch_size: 4
 
 test:
-    batch_size: 2
+    batch_size: 4
 
-remarks: Run with full dataset, 12-layer network with residual connection.
+remarks: Experiment with pixel values normalized to between -1 and 1 and updated mapping file.

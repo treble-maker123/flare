@@ -10,7 +10,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from utils.loader import invalid_collate
-from utils.transforms import OrientFSImage, PadPreprocImage
+from utils.transforms import OrientFSImage, PadPreprocImage, RangeNormalization, MeanStdNormalization
 from sklearn.preprocessing import LabelEncoder
 
 from pdb import set_trace
@@ -30,20 +30,26 @@ class ADNIAutoEncDataset(Dataset):
             limit (int): Size limit for the dataset, used for debugging. This is the total number of images to include for both the training set and validation set. For example, limit=10 with a valid_split of 0.2 will assign 8 images to the training set, 2 images to the validation set. Setting to -1 means to include the whole set. Defaults to -1.
     '''
     def __init__(self, **kwargs):
-        mapping_path = kwargs.get("mapping_path",
-                                  "outputs/files_manifest.pickle")
+        config = kwargs.get("config", {})
+        mapping_path = kwargs.get("mapping_path", config["label_path"])
         preproc_transforms = kwargs.get("preproc_transforms",
                                         [ T.ToTensor(),
-                                          PadPreprocImage() ])
+                                          PadPreprocImage(),
+                                          MeanStdNormalization() ])
         postproc_transforms = kwargs.get("postproc_transforms",
                                          [ T.ToTensor(),
-                                           OrientFSImage() ])
+                                           OrientFSImage(),
+                                           MeanStdNormalization() ])
         mode = kwargs.get("mode", "all")
 
         valid_split = kwargs.get("valid_split", 0.2)
         test_split = kwargs.get("test_split", 0.0)
 
         self.limit = kwargs.get("limit", -1)
+        # column name for the image paths
+        self.image_col = config["image_col"]
+        # column name for the label paths
+        self.label_col = config["label_col"]
 
         self._check_mapping_file(mapping_path)
         self._check_valid_mode(mode)
@@ -55,7 +61,9 @@ class ADNIAutoEncDataset(Dataset):
         with open(mapping_path, "rb") as file:
             self.df = pickle.load(file)
 
-        self.df = self.df[self.df["postproc_path"].notnull()].reset_index()
+        # filter out the rows where label is empty.
+        self.df = self.df[self.df[self.label_col].notnull()].reset_index()
+        # split data according to the mode that is set
         self.df = self._split_data(self.df, valid_split, test_split, mode)
 
     def __len__(self):
@@ -141,8 +149,9 @@ class ADNIAutoEncDataset(Dataset):
         Returns:
             tuple: A pair of strings containing the preprocess and post-processed image paths.
         '''
-        preproc_path = self.df.preproc_path.iloc[idx]
-        postproc_path = self.df.postproc_path.iloc[idx]
+        postproc_img_col = self.image_col
+        preproc_path = self.df["preproc_path"].iloc[idx]
+        postproc_path = self.df[postproc_img_col].iloc[idx]
 
         return preproc_path, postproc_path
 
@@ -233,22 +242,24 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         self.df = self._filter_data()
 
         # Change LMCI and EMCI to MCI
-        target = (self.df.label == "LMCI") | (self.df.label == "EMCI")
-        self.df.loc[target, "label"] = "MCI"
+        target = (self.df[self.label_col] == "LMCI") | \
+                 (self.df[self.label_col]  == "EMCI")
+        self.df.loc[target, self.label_col] = "MCI"
 
         # Setup labels
-        labels = self.df.label[self.df.label.notnull()].unique()
+        not_null = self.df[self.label_col].notnull()
+        labels = self.df[self.label_col][not_null].unique()
         self.label_encoder = self._get_label_encoder(labels)
 
         # Split data
 
-        # AD = 218, MCI = 632, and CN = 283
-        self.ad = self.df[ self.df.label == "AD" ]
-        self.mci = self.df[ self.df.label == "MCI" ]
-        self.cn = self.df[ self.df.label == "CN" ]
+        # AD = 568, MCI = 1787, and CN = 959
+        self.ad = self.df[ self.df[self.label_col] == "AD" ]
+        self.mci = self.df[ self.df[self.label_col] == "MCI" ]
+        self.cn = self.df[ self.df[self.label_col] == "CN" ]
 
         if self.limit == -1:
-            set_size = 200
+            set_size = 550
         else:
             set_size = self.limit
 
@@ -276,7 +287,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
             ])
 
     def __getitem__(self, idx):
-        postproc_path = self.df.iloc[idx].postproc_path
+        postproc_path = self.df.iloc[idx][self.image_col]
         label = self._get_label(idx)
 
         try:
@@ -306,7 +317,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         Return:
             string: AD/MCI/NC
         '''
-        label = self.df.label.iloc[idx]
+        label = self.df[self.label_col].iloc[idx]
 
         return self.label_encoder.transform([label])[0]
 
@@ -317,14 +328,14 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         Returns:
             pandas.DataFrame: All of the rows that contain postproc_path and labels.
         '''
-        has_labels = self.df["label"].notnull()
-        has_paths = self.df["postproc_path"].notnull()
+        has_labels = self.df[self.label_col].notnull()
+        has_paths = self.df[self.image_col].notnull()
 
         return self.df[has_labels & has_paths]
 
 class ADNIAeCnnDataset(ADNIClassDataset):
     def __getitem__(self, idx):
-        postproc_path = self.df.iloc[idx].postproc_path
+        postproc_path = self.df.iloc[idx][self.image_col]
         label = self._get_label(idx)
         try:
             postproc_img = nib.load(postproc_path) \
