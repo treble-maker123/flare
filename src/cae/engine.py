@@ -12,6 +12,7 @@ from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
 from models.hosseini import Hosseini, HosseiniThreeLayer, HosseiniSimple, HosseiniDeep
 from models.ae_cnn import AE_CNN
+from models.deep_mri import DeepMRI
 
 from utils.loader import invalid_collate
 
@@ -249,6 +250,9 @@ class Engine:
         elif model_class == "hosseini_deep":
             print("Using deep Hosseini model.")
             self._model = HosseiniDeep()
+        elif model_class == "deep_mri":
+            print("Using deep MRI model.")
+            self._model = DeepMRI()
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn pathces model.")
             self._model = AE_CNN()

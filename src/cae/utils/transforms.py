@@ -53,4 +53,4 @@ class MeanStdNormalization(object):
         pass
 
     def __call__(self, image):
-        return (image - image.mean()).std()
+        return (image - image.mean()) / image.std()

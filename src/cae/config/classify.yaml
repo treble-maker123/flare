@@ -10,13 +10,13 @@ label_col: DX
 
 data:
     set_name: classify
-    max_workers: 4
+    max_workers: 2
     valid_split: 0.2
     test_split: 0.2
     limit: -1
 
 model:
-    class: hosseini_deep
+    class: deep_mri
 
 pretrain:
     num_epochs: 0
@@ -26,14 +26,14 @@ train:
     optim:
         learn_rate: 0.01
         weight_decay: 0.1
-    batch_size: 4
-    print_iter: 1
+    batch_size: 2
+    print_iter: 5
     save_model: True
 
 valid:
-    batch_size: 4
+    batch_size: 2
 
 test:
-    batch_size: 4
+    batch_size: 2
 
-remarks: Experiment with pixel values normalized to between -1 and 1 and updated mapping file.
+remarks: Using 24-layer network.
