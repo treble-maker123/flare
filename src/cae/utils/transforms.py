@@ -1,5 +1,7 @@
 import torch.nn.functional as F
 
+from pdb import set_trace
+
 class OrientFSImage(object):
     '''
     An object used by Dataset class to orient the FreeSurfer MRI images so they match those of the preprocessed images.
@@ -43,14 +45,44 @@ class RangeNormalization(object):
         pass
 
     def __call__(self, image):
-        return image / image.max()
+        shifted = image - image.min()
+        return shifted / shifted.max()
 
 class MeanStdNormalization(object):
-    '''
-    Normalize the pixel values to between -1 and 1 by subtracting the mean and dividing by the standard deviation.
+    '''Normalize the pixel values to between -1 and 1 by subtracting the mean and dividing by the standard deviation.
     '''
     def __init__(self):
         pass
 
     def __call__(self, image):
         return (image - image.mean()) / image.std()
+
+class NaNToNum(object):
+    '''Replace nan in Tensor with a constant.
+    '''
+    def __init__(self, constant=0):
+        self.constant = constant
+
+    def __call__(self, image):
+        image[image != image] = 0
+        return image
+
+class PadToSameDim3D(object):
+    '''Pad the image so the dimensions match.
+    '''
+    def __init__(self):
+        pass
+
+    def __call__(self, image):
+        shape = image.shape
+        max_dim = max(shape)
+        padding = [0,0,0,0,0,0]
+
+        for idx, dim in enumerate(shape):
+            if shape[idx] != max_dim:
+                diff = max_dim - shape[idx]
+                padding[2 * idx] = diff // 2
+                padding[2 * idx + 1] = diff // 2
+
+        flipped_padding = tuple(reversed(padding))
+        return F.pad(image, flipped_padding)

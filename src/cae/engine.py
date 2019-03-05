@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from pdb import set_trace
 
 from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
+from normalized_dataset import NormalizedDataset
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
@@ -39,7 +40,8 @@ class Engine:
             "lr": config["train"]["optim"]["learn_rate"],
             "weight_decay": config["train"]["optim"]["weight_decay"]
         }
-        optimizer = optim.Adam(model.parameters(), **optim_params)
+        # optimizer = optim.Adam(model.parameters(), **optim_params)
+        optimizer = optim.SGD(model.parameters(), momentum=0.9, **optim_params)
 
         losses = []
 
@@ -304,7 +306,7 @@ class Engine:
         }
 
         pretrain_loader_params = {
-            "batch_size": config["train"]["batch_size"],
+            "batch_size": config["pretrain"]["batch_size"],
             "num_workers": num_workers,
             "collate_fn": invalid_collate,
             "shuffle": True
@@ -342,6 +344,12 @@ class Engine:
             self.train_dataset = ADNIAeCnnDataset(**train_dataset_params)
             self.valid_dataset = ADNIAeCnnDataset(**valid_dataset_params)
             self.test_dataset = ADNIAeCnnDataset(**test_dataset_params)
+        elif self._config["data"]["set_name"] == "normalized":
+            self.pretrain_dataset = NormalizedDataset(**pretrain_dataset_params)
+            self.train_dataset = NormalizedDataset(**train_dataset_params)
+            self.valid_dataset = NormalizedDataset(**valid_dataset_params)
+            self.test_dataset = NormalizedDataset(**test_dataset_params)
+
         self.pretrain_loader = DataLoader(self.pretrain_dataset,
                                           **pretrain_loader_params)
         self.train_loader = DataLoader(self.train_dataset,

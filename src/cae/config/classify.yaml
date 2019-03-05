@@ -1,18 +1,25 @@
 use_gpu: True
-task: classify
+verbose: False
+
 # path to the label file, relative to the src/cae/ path.
+
 # label_path: outputs/files_manifest.pickle
 # image_col: postproc_path
 # label_col: label
-label_path: outputs/surfer_labels.pckl
-image_col: PROC_IMGPATH
-label_col: DX
+
+# label_path: outputs/surfer_labels.pckl
+# image_col: PROC_IMGPATH
+# label_col: DX
+
+label_path: outputs/normalized_mapping_subset.pickle
+image_col: gray_matter_path
+label_col: label
 
 data:
-    set_name: classify
-    max_workers: 2
-    valid_split: 0.2
-    test_split: 0.2
+    set_name: normalized
+    max_workers: 1
+    valid_split: 0.1
+    test_split: 0.1
     limit: -1
 
 model:
@@ -20,20 +27,22 @@ model:
 
 pretrain:
     num_epochs: 0
+    batch_size: 10
 
 train:
-    num_epochs: 100
+    num_epochs: 200
     optim:
-        learn_rate: 0.01
-        weight_decay: 0.1
-    batch_size: 2
+        learn_rate: 0.001
+        weight_decay: 0.00001
+    batch_size: 10
     print_iter: 5
     save_model: True
 
 valid:
-    batch_size: 2
+    batch_size: 10
 
 test:
-    batch_size: 2
+    batch_size: 10
 
-remarks: Using 24-layer network.
+
+remarks: Using deep MRI with gray matter images.

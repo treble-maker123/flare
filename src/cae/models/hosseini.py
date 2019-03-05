@@ -104,25 +104,29 @@ class HosseiniThreeLayer(nn.Module):
 
         self.encoder_layers = [
             # input 256x256x256, output 127x127x127
+            # input 145x145x145, output 47x47x47
             ConvolutionBlock(1, num_kernels[0], kernel_size=3, conv_stride=1,
                              max_pool=True, pool_stride=2, relu=True),
             # input 127x127x127, output 62x62x62
+            # input 47x47x47, output 22x22x22
             ConvolutionBlock(num_kernels[0], num_kernels[1], kernel_size=3,
                              conv_stride=1, max_pool=True, pool_stride=2,
                              relu=True),
             # input 62x62x62, output 30x30x30
+            # input 22x22x22, output 10x10x10
             ConvolutionBlock(num_kernels[1], num_kernels[2], kernel_size=3,
                              conv_stride=1, max_pool=True, pool_stride=2,
                              relu=True),
         ]
 
         # input 30x30x30, output 5x5x5
+        # input 10x10x10, output 3x3x3
         self.conv = ConvolutionBlock(num_kernels[2], num_kernels[3],
                                      kernel_size=3, conv_stride=2,
-                                     max_pool=True, pool_stride=3, relu=True)
+                                     max_pool=True, pool_stride=2, relu=True)
 
         classification_layers = [
-            nn.Linear(5*5*5*num_kernels[-1], 128),
+            nn.Linear(3*3*3*num_kernels[-1], 128),
             nn.ReLU(True),
             nn.Linear(128, 32),
             nn.ReLU(True),
@@ -161,6 +165,10 @@ class HosseiniThreeLayer(nn.Module):
         # input 127x127x127, output 256x256x256
         deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
                                      stride=2, output_padding=1)
+
+        # for 145x145x145 images
+        deconv4 = F.pad(deconv4, (1, 0, 1, 0, 1, 0),
+                       mode="constant", value=0)
 
         return torch.sigmoid(deconv4)
 
