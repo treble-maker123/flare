@@ -12,7 +12,7 @@ verbose: False
 # label_col: DX
 
 label_path: outputs/normalized_mapping.pickle
-image_col: gray_matter_path
+image_col: [gray_matter_path, csf_path, white_matter_path]
 label_col: label
 
 data:
@@ -34,15 +34,15 @@ train:
     optim:
         learn_rate: 0.001
         weight_decay: 0.00001
-    batch_size: 10
+    batch_size: 4
     print_iter: 5
     save_model: True
 
 valid:
-    batch_size: 10
+    batch_size: 4
 
 test:
-    batch_size: 10
+    batch_size: 4
 
 
 remarks: Using deep MRI with gray matter images.

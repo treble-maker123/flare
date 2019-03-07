@@ -11,6 +11,7 @@ class DeepMRI(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
         num_classes = kwargs.get("num_classes", 3)
+        num_channels = kwargs.get("num_channels", 1)
 
         # input 145x145x145, output 143x143x143
         self.block1_1 = ResidualBlock(1, 16, dropout=0.0)
