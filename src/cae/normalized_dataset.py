@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import nibabel as nib
 import torchvision.transforms as T
-import torch 
+import torch
 
 from pdb import set_trace
 from torch.utils.data import Dataset
@@ -26,7 +26,7 @@ class NormalizedDataset(Dataset):
         # limit for the size of the dataset, for debugging purposes
         self.limit = kwargs.get("limit", -1)
         self.verbose = kwargs.get("verbose", self.config["verbose"])
-        
+
         transforms = kwargs.get("transforms", [
             T.ToTensor(),
             PadToSameDim3D(),
@@ -39,17 +39,16 @@ class NormalizedDataset(Dataset):
         self.image_col = self.config["image_col"]
         # name of the label column in the dataframe
         self.label_col = self.config["label_col"]
-        
+
         mapping_path = kwargs.get("mapping_path",
                                   self.config["label_path"])
         mode = kwargs.get("mode", "all")
         task = kwargs.get("task", "classify")
         valid_split = kwargs.get("valid_split", 0.2)
         test_split = kwargs.get("test_split", 0.0)
-        
-        print(mapping_path)
+
         df, self.label_encoder = self._get_data(mapping_path)
-        print(df.shape)
+
         self.dataframe = self._split_data(df, valid_split, test_split, mode,
                                           task)
 
@@ -83,7 +82,7 @@ class NormalizedDataset(Dataset):
         if self.verbose:
             print("Fetched image (label: {}/{}) from {}."
                     .format(label, encoded_label, image_paths))
-            
+
         return transformed_image, encoded_label
 
     # ==============================

@@ -20,7 +20,7 @@ data:
     max_workers: 0
     valid_split: 0.2
     test_split: 0.2
-    limit: 30
+    limit: 20
 
 model:
     class: deep_mri
