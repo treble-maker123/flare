@@ -11,10 +11,11 @@ class DeepMRI(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
         num_classes = kwargs.get("num_classes", 3)
+        num_channels = kwargs.get("num_channels", 1)
 
         # input 256x256x256, output 254x254x254
         # input 145x145x145, output 143x143x143
-        self.conv1 = ConvolutionBlock(1, 16, kernel_size=3,
+        self.conv1 = ConvolutionBlock(3, 16, kernel_size=3,
                         conv_stride=1, max_pool=False, relu=True)
         # input 254x254x254, output 252x252x252
         # input 143x143x143, output 141x141x141
