@@ -20,7 +20,7 @@ class NormalizedDataset(Dataset):
         self.config = kwargs.get("config", {
             "image_col": "misc",
             "label_col": "label",
-            "label_path": "outputs/normalized_mapping_subset.pickle"
+            "label_path": "outputs/normalized_mapping.pickle"
         })
         # limit for the size of the dataset, for debugging purposes
         self.limit = kwargs.get("limit", -1)

@@ -12,131 +12,46 @@ class DeepMRI(nn.Module):
         super().__init__()
         num_classes = kwargs.get("num_classes", 3)
 
-        # input 256x256x256, output 254x254x254
         # input 145x145x145, output 143x143x143
-        self.conv1 = ConvolutionBlock(1, 16, kernel_size=3,
-                        conv_stride=1, max_pool=False, relu=True)
-        # input 254x254x254, output 252x252x252
-        # input 143x143x143, output 141x141x141
-        self.conv2 = ConvolutionBlock(16, 16,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 252x252x252, output 250x250x250 -> 254x254x254
-        # input 143x143x143, output 139x139x139 -> 143x143x143
-        self.conv3 = nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=0)
-        self.bn3 = nn.BatchNorm3d(16)
-        nn.init.kaiming_normal_(self.conv3.weight)
+        self.block1_1 = ResidualBlock(1, 16, dropout=0.0)
+        # input 143x143x143, output 143x143x143
+        self.block1_2 = ResidualBlock(16, 16, dropout=0.0)
 
-        # input 254x254x254, output 252x252x252
-        # input 143x143x143, output 141x141x141
-        self.conv4 = ConvolutionBlock(16, 16,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 252x252x252, output 250x250x250
-        # input 141x141x141, output 139x139x139
-        self.conv5 = ConvolutionBlock(16, 16,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 250x250x250, output 248x248x248 -> 254x254x254
-        # input 139x139x139, output 137x137x137 -> 143x143x143
-        self.conv6 = nn.Conv3d(16, 16, kernel_size=3, stride=1, padding=0)
-        self.bn6 = nn.BatchNorm3d(16)
-        nn.init.kaiming_normal_(self.conv6.weight)
-
-        # input 254x254x254, output 127x127x127
         # input 143x143x143, output 71x71x71
-        self.mp6 = nn.MaxPool3d(2, stride=2)
+        self.mp1 = nn.MaxPool3d(2, stride=2)
 
-        # input 127x127x127, output 125x125x125
         # input 71x71x71, output 69x69x69
-        self.conv7 = ConvolutionBlock(16, 32,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 125x125x125, output 123x123x123
-        # input 69x69x69, output 67x67x67
-        self.conv8 = ConvolutionBlock(32, 32,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 123x123x123, output 121x121x121 -> 125x125x125
-        # input 67x67x67, output 65x65x65 -> 69x69x69
-        self.conv9 = nn.Conv3d(32, 32, kernel_size=3, stride=1, padding=0)
-        self.bn9 = nn.BatchNorm3d(32)
-        nn.init.kaiming_normal_(self.conv9.weight)
+        self.block2_1 = ResidualBlock(16, 32, dropout=0.0)
+        # input 69x69x69, output 69x69x69
+        self.block2_2 = ResidualBlock(32, 32, dropout=0.0)
 
-        # input 125x125x125, output 123x123x123
-        # input 69x69x69, output 65x65x65 -> 67x67x67
-        self.conv10 = ConvolutionBlock(32, 32,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 123x123x123, output 121x121x121
-        # input 67x67x67, output 65x65x65 -> 65x65x65
-        self.conv11 = ConvolutionBlock(32, 32,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 121x121x121, output 119x119x119 -> 125x125x125
-        # input 65x65x65, output 63x63x63 -> 69x69x69
-        self.conv12 = nn.Conv3d(32, 32, kernel_size=3, stride=1, padding=0)
-        self.bn12 = nn.BatchNorm3d(32)
-        nn.init.kaiming_normal_(self.conv12.weight)
+        # input 69x69x69, output 34x34x34
+        self.mp2 = nn.MaxPool3d(2, stride=2)
 
-        # input 125x125x125, 62x62x62
-        # input 69x69x69, 34x34x34
-        self.mp12 = nn.MaxPool3d(2, stride=2)
-
-        # input 62x62x62, output 60x60x60
         # input 34x34x34, output 32x32x32
-        self.conv13 = ConvolutionBlock(32, 64,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 60x60x60, output 58x58x58
-        # input 32x32x32, output 30x30x30
-        self.conv14 = ConvolutionBlock(64, 64,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 58x58x58, output 56x56x56 -> 60x60x60
-        # input 30x30x30, output 28x28x28 -> 32x32x32
-        self.conv15 = nn.Conv3d(64, 64, kernel_size=3, stride=1, padding=0)
-        self.bn15 = nn.BatchNorm3d(64)
-        nn.init.kaiming_normal_(self.conv15.weight)
+        self.block3_1 = ResidualBlock(32, 64, dropout=0.0)
+        # input 32x32x32, output 32x32x32
+        self.block3_2 = ResidualBlock(64, 64, dropout=0.0)
 
-        # input 60x60x60, output 58x58x58
-        # input 32x32x32, output 30x30x30
-        self.conv16 = ConvolutionBlock(64, 64,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 58x58x58, output 56x56x56
-        # input 30x30x30, output 28x28x28
-        self.conv17 = ConvolutionBlock(64, 64,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 56x56x56, output 54x54x54 -> 60x60x60
-        # input 28x28x28, output 26x26x26 -> 32x32x32
-        self.conv18 = nn.Conv3d(64, 64, kernel_size=3, stride=1, padding=0)
-        self.bn18 = nn.BatchNorm3d(64)
-        nn.init.kaiming_normal_(self.conv18.weight)
-
-        # input 60x60x60, output 30x30x30
         # input 32x32x32, output 16x16x16
-        self.mp18 = nn.MaxPool3d(2, stride=2)
+        self.mp3 = nn.MaxPool3d(2, stride=2)
 
-        # input 30x30x30, output 28x28x28
         # input 16x16x16, output 14x14x14
-        self.conv19 = ConvolutionBlock(64, 128,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 28x28x28, output 26x26x26
-        # input 14x14x14, output 12x12x12
-        self.conv20 = ConvolutionBlock(128, 128,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 26x26x26, output 24x24x24 -> 28x28x28
-        # input 12x12x12, output 10x10x10 -> 14x14x14
-        self.conv21 = nn.Conv3d(128, 128, kernel_size=3, stride=1, padding=0)
-        self.bn21 = nn.BatchNorm3d(128)
-        nn.init.kaiming_normal_(self.conv21.weight)
+        self.block4_1 = ResidualBlock(64, 96, dropout=0.0)
+        # input 14x14x14, output 14x14x14
+        self.block4_2 = ResidualBlock(96, 96, dropout=0.0)
 
-        # input 28x28x28, output 14x14x14
         # input 14x14x14, output 7x7x7
-        self.mp21 = nn.MaxPool3d(2, stride=2)
+        self.mp4 = nn.MaxPool3d(2, stride=2)
 
-        # input 13x13x13, output 11x11x11
         # input 7x7x7, output 5x5x5
-        self.conv22 = ConvolutionBlock(128, 128,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 11x11x11, output 9x9x9
+        self.conv1 = ConvolutionBlock(96, 128, kernel_size=3, stride=1,
+                        padding=0, batch_norm=True, max_pool=False, relu=True)
         # input 5x5x5, output 3x3x3
-        self.conv23 = ConvolutionBlock(128, 128,
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
-        # input 9x9x9, output 2x2x2\
-        # self.conv24 = ConvolutionBlock(128, 256,
-        #                 kernel_size=3, conv_stride=1, max_pool=False, relu=True)
+        self.conv2 = ConvolutionBlock(128, 128, kernel_size=3, stride=1,
+                        padding=0, batch_norm=True, max_pool=False, relu=True)
+
+        self.class_dropout = nn.Dropout(p=0.0)
 
         classification_layers = [
             nn.Linear(3*3*3*128, 64),
@@ -149,57 +64,28 @@ class DeepMRI(nn.Module):
         self.classify = nn.Sequential(*classification_layers)
 
     def forward(self, x):
-        conv1 = self.conv1(x)
+        b1_1, res1_1 = self.block1_1(x)
+        b1_2, _ = self.block1_2(b1_1, res1_1)
+        g1 = self.mp1(b1_2)
+
+        b2_1, res2_1 = self.block2_1(g1)
+        b2_2, _ = self.block2_2(b2_1, res2_1)
+        g2 = self.mp2(b2_2)
+
+        b3_1, res3_1 = self.block3_1(g2)
+        b3_2, _ = self.block3_2(b3_1, res3_1)
+        g3 = self.mp3(b3_2)
+
+        b4_1, res4_1 = self.block4_1(g3)
+        b4_2, _ = self.block4_2(b4_1, res4_1)
+        g4 = self.mp4(b4_2)
+
+        conv1 = self.conv1(g4)
         conv2 = self.conv2(conv1)
-        conv3 = self.bn3(self.conv3(conv2))
-        conv3 = F.pad(conv3, (2, 2, 2, 2, 2, 2), value=0) + conv1
-        F.relu(conv3, inplace=True)
 
-        conv4 = self.conv4(conv3)
-        conv5 = self.conv5(conv4)
-        conv6 = self.bn6(self.conv6(conv5))
-        conv6 = F.pad(conv6, (3, 3, 3, 3, 3, 3), value=0) + conv1
-        F.relu(conv6, inplace=True)
-        conv6 = self.mp6(conv6)
+        final_conv = self.class_dropout(conv2)
 
-        conv7 = self.conv7(conv6)
-        conv8 = self.conv8(conv7)
-        conv9 = self.bn9(self.conv9(conv8))
-        conv9 = F.pad(conv9, (2, 2, 2, 2, 2, 2), value=0) + conv7
-        F.relu(conv9, inplace=True)
-
-        conv10 = self.conv10(conv9)
-        conv11 = self.conv11(conv10)
-        conv12 = self.bn12(self.conv12(conv11))
-        conv12 = F.pad(conv12, (3, 3, 3, 3, 3, 3), value=0) + conv7
-        F.relu(conv12, inplace=True)
-        conv12 = self.mp12(conv12)
-
-        conv13 = self.conv13(conv12)
-        conv14 = self.conv14(conv13)
-        conv15 = self.bn15(self.conv15(conv14))
-        conv15 = F.pad(conv15, (2, 2, 2, 2, 2, 2), value=0) + conv13
-        F.relu(conv15, inplace=True)
-
-        conv16 = self.conv16(conv15)
-        conv17 = self.conv17(conv16)
-        conv18 = self.bn18(self.conv18(conv17))
-        conv18 = F.pad(conv18, (3, 3, 3, 3, 3, 3), value=0) + conv13
-        F.relu(conv18, inplace=True)
-        conv18 = self.mp18(conv18)
-
-        conv19  = self.conv19(conv18)
-        conv20 = self.conv20(conv19)
-        conv21 = self.bn21(self.conv21(conv20))
-        conv21 = F.pad(conv21, (2, 2, 2, 2, 2, 2), value=0) + conv19
-        F.relu(conv21, inplace=True)
-        conv21 = self.mp21(conv21)
-
-        conv22 = self.conv22(conv21)
-        conv23 = self.conv23(conv22)
-        # conv24 = self.conv24(conv23)
-
-        hidden = conv23.view(len(x), -1)
+        hidden = final_conv.view(len(x), -1)
         scores = self.classify(hidden)
 
         return scores
@@ -256,3 +142,33 @@ class ConvolutionBlock(nn.Module):
 
     def forward(self, x):
         return self.block(x)
+
+class ResidualBlock(nn.Module):
+    def __init__(self, input_dim, output_dim, **kwargs):
+        super().__init__()
+        dropout = kwargs.get("dropout", 0.0)
+
+        self.dropout = nn.Dropout(dropout)
+
+        self.conv1 = ConvolutionBlock(input_dim, output_dim, kernel_size=3,
+                        conv_stride=1, max_pool=False, relu=True)
+        self.conv2 = ConvolutionBlock(output_dim, output_dim,
+                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
+        self.conv3 = ConvolutionBlock(output_dim, output_dim,
+                        kernel_size=3, conv_stride=1, max_pool=False,
+                        relu=False)
+
+    def forward(self, x, prev_state=None):
+        dropped = self.dropout(x)
+        l1 = self.conv1(dropped)
+        l3 = self.conv3(self.conv2(l1))
+
+        prev_state = prev_state if prev_state is not None else l1
+
+        amount_to_pad = (prev_state.shape[-1] - l3.shape[-1]) // 2
+        padding = (amount_to_pad, ) * 6
+
+        output = F.pad(l3, padding, value=0) + prev_state
+        F.relu(output, inplace=True)
+
+        return output, l1
