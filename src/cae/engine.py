@@ -254,7 +254,8 @@ class Engine:
             self._model = HosseiniDeep()
         elif model_class == "deep_mri":
             print("Using deep MRI model.")
-            self._model = DeepMRI()
+            n_channels = len(config["image_col"])
+            self._model = DeepMRI(num_channels=n_channels)
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn pathces model.")
             self._model = AE_CNN()

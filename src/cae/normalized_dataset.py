@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import nibabel as nib
 import torchvision.transforms as T
+import torch 
 
 from pdb import set_trace
 from torch.utils.data import Dataset
@@ -25,7 +26,7 @@ class NormalizedDataset(Dataset):
         # limit for the size of the dataset, for debugging purposes
         self.limit = kwargs.get("limit", -1)
         self.verbose = kwargs.get("verbose", self.config["verbose"])
-
+        
         transforms = kwargs.get("transforms", [
             T.ToTensor(),
             PadToSameDim3D(),
@@ -38,15 +39,17 @@ class NormalizedDataset(Dataset):
         self.image_col = self.config["image_col"]
         # name of the label column in the dataframe
         self.label_col = self.config["label_col"]
-
+        
         mapping_path = kwargs.get("mapping_path",
                                   self.config["label_path"])
         mode = kwargs.get("mode", "all")
         task = kwargs.get("task", "classify")
         valid_split = kwargs.get("valid_split", 0.2)
         test_split = kwargs.get("test_split", 0.0)
-
+        
+        print(mapping_path)
         df, self.label_encoder = self._get_data(mapping_path)
+        print(df.shape)
         self.dataframe = self._split_data(df, valid_split, test_split, mode,
                                           task)
 
@@ -54,25 +57,33 @@ class NormalizedDataset(Dataset):
         return len(self.dataframe.index)
 
     def __getitem__(self, idx):
-        image_path = self.dataframe[self.image_col].iloc[idx]
+        image_paths = []
+        for channel in range(len(self.image_col)):
+            image_paths.append(self.dataframe[self.image_col[channel]].iloc[idx])
         label = self.dataframe[self.label_col].iloc[idx]
         encoded_label = self.label_encoder.transform([label])[0]
 
-        try:
-            image = nib.load(image_path) \
-                       .get_fdata() \
-                       .squeeze()
-        except Exception as e:
-            print("Failed to load #{}: {}".format(idx, image_path))
-            return None, None
+        transformed_imgs = []
+        for channel in range(len(image_paths)):
+            try:
+                image = nib.load(image_paths[channel]) \
+                           .get_fdata() \
+                           .squeeze()
+            except Exception as e:
+                print("Failed to load #{}: {}".format(idx, image_paths[channel]))
+                return None, None
 
-        # unsqueeze adds a "channel" dimension
-        transformed_image = self.transforms(image).unsqueeze(0)
+            # unsqueeze adds a "channel" dimension
+            transformed_imgs.append(self.transforms(image).unsqueeze(0))
+
+        transformed_image = transformed_imgs[0]
+        for channel in range(len(image_paths)-1):
+            transformed_image = torch.cat([transformed_image, transformed_imgs[channel+1]])
 
         if self.verbose:
             print("Fetched image (label: {}/{}) from {}."
-                    .format(label, encoded_label, image_path))
-
+                    .format(label, encoded_label, image_paths))
+            
         return transformed_image, encoded_label
 
     # ==============================
@@ -145,6 +156,7 @@ class NormalizedDataset(Dataset):
             return df[:]
 
     def _get_data(self, mapping_path):
+        print(mapping_path)
         if not os.path.exists(mapping_path):
             raise Exception("Failed to create dataset, \"{}\" does not exist! Run \"utils/normalized_mapping.py\" script to generate mapping."
                 .format(mapping_path))
@@ -155,7 +167,8 @@ class NormalizedDataset(Dataset):
         # filter out rows with empty label
         df = df[df[self.label_col].notnull()].reset_index()
         # filter out rows with empty image path
-        df = df[df[self.image_col].notnull()].reset_index()
+        for i in range(len(self.image_col)):
+            df = df[df[self.image_col[i]].notnull()].reset_index(drop=True)
 
         # change LMCI and EMCI to MCI
         target = (df[self.label_col] == "LMCI") | \
