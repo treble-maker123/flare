@@ -47,7 +47,9 @@ class NormalizedDataset(Dataset):
         valid_split = kwargs.get("valid_split", 0.2)
         test_split = kwargs.get("test_split", 0.0)
 
-        df, self.label_encoder = self._get_data(mapping_path)
+        df, label_encoder = self._get_data(mapping_path)
+        input_encoder = kwargs.get("label_encoder", None)
+        self.label_encoder = label_encoder if input_encoder is None else input_encoder
 
         self.dataframe = self._split_data(df, valid_split, test_split, mode,
                                           task)

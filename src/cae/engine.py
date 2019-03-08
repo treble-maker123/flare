@@ -18,10 +18,11 @@ from models.deep_mri import DeepMRI
 from utils.loader import invalid_collate
 
 class Engine:
-    def __init__(self, config, **kwargs):
+    def __init__(self, config, tb_writer, **kwargs):
         device = kwargs.get("device", None)
         model_path = kwargs.get("model_path", None)
 
+        self.writer = tb_writer
         self._config = config
         self._setup_device(device)
         self.load_model(model_path)
@@ -54,6 +55,7 @@ class Engine:
                 output = model.module.reconstruct(x)
                 loss = model.module.reconstruction_loss(output, x)
             else:
+                output = model.reconstruct(x)
                 loss = model.reconstruction_loss(output, x)
 
             loss.backward()
@@ -92,20 +94,35 @@ class Engine:
         optimizer = optim.Adam(model.parameters(), **optim_params)
 
         losses = []
+        tally = {
+            # [ num correct, total ]
+            "AD": [0, 0],
+            "CN": [0, 0],
+            "MCI": [0, 0],
+            "Total": [0, 0]
+        }
 
         for num_iter, (x, y) in enumerate(self.train_loader):
-
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
             y = y.to(device=device).long()
 
-            output = model(x)
+            pred = model(x)
 
             if type(model) == torch.nn.DataParallel:
-                loss = model.module.loss(output, y)
+                loss = model.module.loss(pred, y)
             else:
-                loss = model.loss(output, y)
+                loss = model.loss(pred, y)
+
+            if y.dim() == 1: # classification
+                with torch.no_grad():
+                    pred = pred.argmax(dim=1)
+
+                    label_encoder = self.train_loader.dataset.label_encoder
+                    correct = (y.cpu().numpy() == pred.cpu().numpy())
+                    labels = label_encoder.inverse_transform(y.cpu().numpy())
+                    tally = self._add_to_tally(labels, correct, tally)
 
             loss.backward()
             optimizer.step()
@@ -114,10 +131,16 @@ class Engine:
             if num_iter % print_iter == 0:
                 print("\tIteration {}: {}".format(num_iter, loss.item()))
 
+        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
+        print("\tTrain correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], pct_correct))
+
         return {
             "loss_history": losses,
             "average_loss": sum(losses) / len(losses)
-        }
+        }, tally
 
     def validate(self):
         device = self._device
@@ -130,6 +153,13 @@ class Engine:
         losses = []
         num_correct = 0
         num_total = 0
+        tally = {
+            # [ num correct, total ]
+            "AD": [0, 0],
+            "CN": [0, 0],
+            "MCI": [0, 0],
+            "Total": [0, 0]
+        }
 
         with torch.no_grad():
             for num_iter, (x, y) in enumerate(self.valid_loader):
@@ -148,14 +178,25 @@ class Engine:
                     num_correct += (y == pred).sum().item()
                     num_total += len(y)
 
+                    label_encoder = self.train_loader.dataset.label_encoder
+                    correct = (y.cpu().numpy() == pred.cpu().numpy())
+                    labels = label_encoder.inverse_transform(y.cpu().numpy())
+                    tally = self._add_to_tally(labels, correct, tally)
+
                 losses.append(loss.item())
+
+        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
+        print("\tValid correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], pct_correct))
 
         return {
             "loss_history": losses,
             "average_loss": sum(losses) / len(losses),
             "num_correct": num_correct,
             "num_total": num_total
-        }
+        }, tally
 
     def test(self):
         device = self._device
@@ -168,6 +209,13 @@ class Engine:
         losses = []
         num_correct = 0
         num_total = 0
+        tally = {
+            # [ num correct, total ]
+            "AD": [0, 0],
+            "CN": [0, 0],
+            "MCI": [0, 0],
+            "Total": [0, 0]
+        }
 
         with torch.no_grad():
             for num_iter, (x, y) in enumerate(self.test_loader):
@@ -186,14 +234,25 @@ class Engine:
                     num_correct += (y == pred).sum().item()
                     num_total += len(y)
 
+                    label_encoder = self.train_loader.dataset.label_encoder
+                    correct = (y.cpu().numpy() == pred.cpu().numpy())
+                    labels = label_encoder.inverse_transform(y.cpu().numpy())
+                    tally = self._add_to_tally(labels, correct, tally)
+
                 losses.append(loss.item())
+
+        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
+        print("\tTest correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], pct_correct))
 
         return {
             "loss_history": losses,
             "average_loss": sum(losses) / len(losses),
             "num_correct": num_correct,
             "num_total": num_total
-        }
+        }, tally
 
     def save_model(self, path, **kwargs):
         device = kwargs.get("device", self._device)
@@ -348,8 +407,12 @@ class Engine:
         elif self._config["data"]["set_name"] == "normalized":
             self.pretrain_dataset = NormalizedDataset(**pretrain_dataset_params)
             self.train_dataset = NormalizedDataset(**train_dataset_params)
-            self.valid_dataset = NormalizedDataset(**valid_dataset_params)
-            self.test_dataset = NormalizedDataset(**test_dataset_params)
+            # Ensure the label and its encoded counter part match.
+            label_encoder = self.train_dataset.label_encoder
+            self.valid_dataset = NormalizedDataset(label_encoer= label_encoder,
+                                                    **valid_dataset_params)
+            self.test_dataset = NormalizedDataset(label_encoer= label_encoder,
+                                                    **test_dataset_params)
 
         self.pretrain_loader = DataLoader(self.pretrain_dataset,
                                           **pretrain_loader_params)
@@ -364,3 +427,18 @@ class Engine:
                 .format(len(self.train_dataset),
                         len(self.valid_dataset),
                         len(self.test_dataset)))
+
+    def _add_to_tally(self, labels, gt, tally):
+        ad = labels == "AD"
+        cn = labels == "CN"
+        mci = labels == "MCI"
+        tally["AD"][0] += (ad * gt).sum()
+        tally["AD"][1] += ad.sum()
+        tally["CN"][0] += (cn * gt).sum()
+        tally["CN"][1] += cn.sum()
+        tally["MCI"][0] += (mci * gt).sum()
+        tally["MCI"][1] += mci.sum()
+        tally["Total"][0] += gt.sum()
+        tally["Total"][1] += len(labels)
+
+        return tally
