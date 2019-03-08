@@ -12,15 +12,15 @@ verbose: False
 # label_col: DX
 
 label_path: outputs/normalized_mapping.pickle
-image_col: [gray_matter_path, csf_path, white_matter_path]
+image_col: [ gray_matter_path, white_matter_path, csf_path ]
 label_col: label
 
 data:
     set_name: normalized
-    max_workers: 0
+    max_workers: 8
     valid_split: 0.2
     test_split: 0.2
-    limit: 20
+    limit: -1
 
 model:
     class: deep_mri
@@ -30,19 +30,19 @@ pretrain:
     batch_size: 10
 
 train:
-    num_epochs: 10
+    num_epochs: 200
     optim:
-        learn_rate: 0.001
+        learn_rate: 0.01
         weight_decay: 0.00001
-    batch_size: 4
+    batch_size: 10
     print_iter: 5
     save_model: True
 
 valid:
-    batch_size: 4
+    batch_size: 10
 
 test:
-    batch_size: 4
+    batch_size: 10
 
 
-remarks: Using deep MRI with gray matter images.
+remarks: Using deep MRI with all three maps images.
