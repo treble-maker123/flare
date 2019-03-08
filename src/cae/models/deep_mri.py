@@ -17,6 +17,8 @@ class DeepMRI(nn.Module):
         self.block1_1 = ResidualBlock(num_channels, 16, dropout=0.0)
         # input 143x143x143, output 143x143x143
         self.block1_2 = ResidualBlock(16, 16, dropout=0.0)
+        # input 143x143x143, output 143x143x143
+        self.block1_3 = ResidualBlock(16, 16, dropout=0.0)
 
         # input 143x143x143, output 71x71x71
         self.mp1 = nn.MaxPool3d(2, stride=2)
@@ -25,6 +27,8 @@ class DeepMRI(nn.Module):
         self.block2_1 = ResidualBlock(16, 32, dropout=0.0)
         # input 69x69x69, output 69x69x69
         self.block2_2 = ResidualBlock(32, 32, dropout=0.0)
+        # input 69x69x69, output 69x69x69
+        self.block2_3 = ResidualBlock(32, 32, dropout=0.0)
 
         # input 69x69x69, output 34x34x34
         self.mp2 = nn.MaxPool3d(2, stride=2)
@@ -33,6 +37,8 @@ class DeepMRI(nn.Module):
         self.block3_1 = ResidualBlock(32, 64, dropout=0.0)
         # input 32x32x32, output 32x32x32
         self.block3_2 = ResidualBlock(64, 64, dropout=0.0)
+        # input 32x32x32, output 32x32x32
+        self.block3_3 = ResidualBlock(64, 64, dropout=0.0)
 
         # input 32x32x32, output 16x16x16
         self.mp3 = nn.MaxPool3d(2, stride=2)
@@ -67,15 +73,18 @@ class DeepMRI(nn.Module):
     def forward(self, x):
         b1_1, res1_1 = self.block1_1(x)
         b1_2, _ = self.block1_2(b1_1, res1_1)
-        g1 = self.mp1(b1_2)
+        b1_3, _ = self.block1_3(b1_2, res1_1)
+        g1 = self.mp1(b1_3)
 
         b2_1, res2_1 = self.block2_1(g1)
         b2_2, _ = self.block2_2(b2_1, res2_1)
-        g2 = self.mp2(b2_2)
+        b2_3, _ = self.block2_3(b2_2, res2_1)
+        g2 = self.mp2(b2_3)
 
         b3_1, res3_1 = self.block3_1(g2)
         b3_2, _ = self.block3_2(b3_1, res3_1)
-        g3 = self.mp3(b3_2)
+        b3_3, _ = self.block3_3(b3_2, res3_1)
+        g3 = self.mp3(b3_3)
 
         b4_1, res4_1 = self.block4_1(g3)
         b4_2, _ = self.block4_2(b4_1, res4_1)
