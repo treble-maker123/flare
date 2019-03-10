@@ -13,7 +13,9 @@ from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
 from models.hosseini import Hosseini, HosseiniThreeLayer, HosseiniSimple, HosseiniDeep
 from models.ae_cnn import AE_CNN
+from models.two_d import TwoD
 from models.deep_mri import DeepMRI
+from slice_dataset import SliceDataset
 
 from utils.loader import invalid_collate
 
@@ -315,6 +317,10 @@ class Engine:
             print("Using deep MRI model.")
             n_channels = len(config["image_col"])
             self._model = DeepMRI(num_channels=n_channels)
+        elif model_class == "2d":
+            print("Using 2D deep learning model.")
+            n_channels = len(config["image_col"])
+            self._model = TwoD(num_channels=n_channels)
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn pathces model.")
             self._model = AE_CNN()
@@ -412,6 +418,15 @@ class Engine:
             self.valid_dataset = NormalizedDataset(label_encoer= label_encoder,
                                                     **valid_dataset_params)
             self.test_dataset = NormalizedDataset(label_encoer= label_encoder,
+                                                    **test_dataset_params)
+        elif self._config["data"]["set_name"] == "2d":
+            self.pretrain_dataset = SliceDataset(**pretrain_dataset_params)
+            self.train_dataset = SliceDataset(**train_dataset_params)
+            # Ensure the label and its encoded counter part match.
+            label_encoder = self.train_dataset.label_encoder
+            self.valid_dataset = SliceDataset(label_encoer= label_encoder,
+                                                    **valid_dataset_params)
+            self.test_dataset = SliceDataset(label_encoer= label_encoder,
                                                     **test_dataset_params)
 
         self.pretrain_loader = DataLoader(self.pretrain_dataset,
