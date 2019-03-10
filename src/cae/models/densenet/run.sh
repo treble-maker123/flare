@@ -9,6 +9,6 @@
 #SBATCH --mem=90000
 #SBATCH --gres=gpu:2
 
-python3 resnet.py
+python3 densenet.py
 sleep 1
 exit
