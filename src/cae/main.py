@@ -11,20 +11,23 @@ from tensorboardX import SummaryWriter
 from pdb import set_trace
 
 from engine import Engine
+from logger import Logger
 from utils.dir import mkdir
 
 def main(config_path, run_id, tb_writer):
     # https://github.com/pytorch/pytorch/issues/1485
     torch.backends.cudnn.benchmark=True
 
+    logger = Logger(tb_writer=tb_writer)
+
     with open(config_path) as file:
         config = yaml.load(file)
 
-    print("----- START ({}) -----".format(run_id))
-    print("Following configurations are used for this run:")
-    print("")
-    print(yaml.dump(config, default_flow_style=False))
-    print("")
+    logger.log("----- START ({}) -----".format(run_id))
+    logger.log("Following configurations are used for this run:")
+    logger.log("")
+    logger.log(yaml.dump(config, default_flow_style=False))
+    logger.log("")
 
     main_start = time()
 
@@ -36,7 +39,7 @@ def main(config_path, run_id, tb_writer):
     mkdir("outputs/weights/{}".format(run_id))
 
     num_epochs = config["train"]["num_epochs"]
-    engine = Engine(config, tb_writer)
+    engine = Engine(config, tb_writer, logger)
 
     pretrain_history = []
     train_history = []
@@ -47,21 +50,21 @@ def main(config_path, run_id, tb_writer):
     if config["pretrain"]["num_epochs"] > 0:
         for epoch in range(config["pretrain"]["num_epochs"]):
             epoch_start = time()
-            print("Starting pretraining epoch {}:".format(epoch + 1))
+            logger.log("Starting pretraining epoch {}:".format(epoch + 1), epoc=epoch)
 
-            pretrain_result = engine.pretrain()
+            pretrain_result = engine.pretrain(epoch=epoch)
             pretrain_history.append(pretrain_result)
 
-            print("\tAverage training loss: {}"
-                .format(pretrain_result["average_loss"]))
+            logger.log("\tAverage training loss: {}"
+                .format(pretrain_result["average_loss"]), epoch=epoch)
     else:
-        print("Skipping pretraining.")
+        logger.log("Skipping pretraining.")
 
     for epoch in range(num_epochs):
         epoch_start = time()
 
         # TRAINING
-        print("Starting training epoch {}:".format(epoch + 1))
+        logger.log("Starting training epoch {}:".format(epoch + 1), epoch=epoch)
         train_result, tally = engine.train()
         tb_writer.add_scalars("training/Num AD Correct", {
             "AD Correct": tally["AD"][0],
@@ -92,10 +95,16 @@ def main(config_path, run_id, tb_writer):
             "MCI Correct": tally["MCI"][0]
         }, epoch)
         train_history.append(train_result)
-        print("\tAverage training loss: {}"
-                .format(train_result["average_loss"]))
         percent = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
         tb_writer.add_scalar("training/Pct Correct", percent, epoch)
+
+        logger.log("\tAverage training loss: {}"
+                .format(train_result["average_loss"]), epoch=epoch)
+        logger.log(
+            "\tTrain correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], percent), epoch=epoch)
 
         # VALIDATION
         valid_result, tally = engine.validate()
@@ -131,18 +140,20 @@ def main(config_path, run_id, tb_writer):
         num_correct = valid_result["num_correct"]
         num_total = valid_result["num_total"]
 
-        print("\tAverage validation loss: {}"
-                .format(valid_result["average_loss"]))
-        if num_total > 0:
-            percent = round(((num_correct * 1.0) / num_total) * 100, 2)
-            print("\tAccuracy: {}/{} ({}%) correct."
-                    .format(num_correct, num_total, percent))
-            tb_writer.add_scalar("validation/Pct Correct", percent, epoch)
-
+        percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+        tb_writer.add_scalar("validation/Pct Correct", percent, epoch)
         tb_writer.add_scalars("misc/loss", {
             "Training": train_result["average_loss"],
             "Validation": valid_result["average_loss"]
         }, epoch)
+
+        logger.log("\tAverage validation loss: {}"
+                .format(valid_result["average_loss"]), epoch=epoch)
+        logger.log(
+            "\tValid correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], percent), epoch=epoch)
 
         # CHECKPOINT
         # Five lowest loss models are saved
@@ -154,19 +165,19 @@ def main(config_path, run_id, tb_writer):
             file_name = "outputs/weights/{}/{}.pt" \
                             .format(run_id, highest_loss_idx)
             engine.save_model(file_name)
-            print("\tModel saved as {}.".format(file_name))
+            logger.log("\tModel saved as {}.".format(file_name), epoch=epoch)
 
         elapsed_time = time() - epoch_start
-        print("Epoch {} completed in {} seconds."
-                .format(epoch + 1, round(elapsed_time)))
+        logger.log("Epoch {} completed in {} seconds."
+                .format(epoch + 1, round(elapsed_time)), epoch=epoch)
 
     # TESTING
-    print("Starting test...")
-    print("Top 5 lowest losses: {}".format(lowest_losses))
+    logger.log("Starting test...", epoch=epoch+1)
+    logger.log("Top 5 lowest losses: {}".format(lowest_losses), epoch=epoch+1)
     lowest_loss_idx = lowest_losses.index(min(lowest_losses))
     file_name = "outputs/weights/{}/{}.pt" \
                     .format(run_id, lowest_loss_idx)
-    print("Loading model with lowest loss for testing.")
+    logger.log("Loading model with lowest loss for testing.", epoch=epoch+1)
     engine.load_model()
     test_result, tally = engine.test()
     tb_writer.add_scalars("testing/stats", {
@@ -182,11 +193,15 @@ def main(config_path, run_id, tb_writer):
     num_correct = test_result["num_correct"]
     num_total = test_result["num_total"]
     test_percent = round(((num_correct * 1.0) / num_total) * 100, 2)
-    print("Final test results: {}/{} ({}%)".format(num_correct, num_total,
-                                                   test_percent))
     tb_writer.add_scalar("testing/Pct Correct", test_percent, 0)
+    logger.log("Final test results: {}/{} ({}%)".format(num_correct, num_total,
+                                                   test_percent), epoch=epoch+1)
+    logger.log("\tTest correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                        tally["Total"][0], tally["Total"][1], test_percent), epoch=epoch+1)
 
-    print("Writing statistics to file")
+    logger.log("Writing statistics to file", epoch=epoch+1)
     statistics = {
         "pretrain_history": pretrain_history,
         "train_history": train_history,
@@ -198,9 +213,9 @@ def main(config_path, run_id, tb_writer):
         pickle.dump(statistics, file)
 
     tb_writer.close()
-    print("Experiment finished in {} seconds."
-            .format(round(time() - main_start)))
-    print("----- END ({}) -----".format(run_id))
+    logger.log("Experiment finished in {} seconds."
+            .format(round(time() - main_start)), epoch=epoch+1)
+    logger.log("----- END ({}) -----".format(run_id), epoch=epoch+1)
 
 if __name__ == "__main__":
     # Make sure this is run from the correct directory

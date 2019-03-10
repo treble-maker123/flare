@@ -154,7 +154,7 @@ if __name__ == "__main__":
 
     # The level below this path should be all of the subjects with IDs
     parser.add_argument("--img_path", type=str,
-                        default="/mnt/nfs/work1/mfiterau/riteshkumar/processed_segmentation_data/caps_tissue/subjects")
+                        default="/mnt/nfs/work1/mfiterau/zguan/clinica_data/subjects")
     parser.add_argument("--max_proc", type=int, default=12)
     parser.add_argument("--feat_path", type=str,
                         default="../outputs/ADNIMERGE.csv")

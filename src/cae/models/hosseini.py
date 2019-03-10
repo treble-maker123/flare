@@ -101,11 +101,12 @@ class HosseiniThreeLayer(nn.Module):
 
         num_kernels = kwargs.get("num_kernels", [32, 64, 128, 192])
         num_classes = kwargs.get("num_classes", 3)
+        num_chan = kwargs.get("num_channels", 3)
 
         self.encoder_layers = [
             # input 256x256x256, output 127x127x127
             # input 145x145x145, output 47x47x47
-            ConvolutionBlock(1, num_kernels[0], kernel_size=3, conv_stride=1,
+            ConvolutionBlock(num_chan, num_kernels[0], kernel_size=3, conv_stride=1,
                              max_pool=True, pool_stride=2, relu=True),
             # input 127x127x127, output 62x62x62
             # input 47x47x47, output 22x22x22
@@ -254,57 +255,71 @@ class HosseiniSimple(nn.Module):
 class HosseiniDeep(nn.Module):
     '''
     Deep network with many convolution layers. MUST RUN ON M40 GPU!
+
+    Normalized gray-matter image batch size: 14 per M40
+    Normalized three-channel image batch size: 6 per titanx-long
     '''
     def __init__(self, **kwargs):
         super().__init__()
 
+        num_chan = kwargs.get("num_channels", 3)
         num_kernels = kwargs.get("num_kernels",
                                  [16, 16, 16, 32, 32, 32, 64, 64, 64])
         num_classes = kwargs.get("num_classes", 3)
 
         # input 256x256x256, output 254x254x254
-        self.conv1 = ConvolutionBlock(1, num_kernels[0], kernel_size=3,
+        # input 145x145x145, output 143x143x143
+        self.conv1 = ConvolutionBlock(num_chan, num_kernels[0], kernel_size=3,
                         conv_stride=1, max_pool=False, relu=True)
         # input 254x254x254, output 252x252x252
+        # input 143x143x143, output 141x141x141
         self.conv2 = ConvolutionBlock(num_kernels[0], num_kernels[1],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 252x252x252, output 250x250x250
+        # input 141x141x141, output 139x139x139
         self.conv3 = ConvolutionBlock(num_kernels[0], num_kernels[1],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 250x250x250, output 62x62x62
+        # input 139x139x139, output 69x69x69
         self.conv4 = ConvolutionBlock(num_kernels[1], num_kernels[2],
-                        kernel_size=3, conv_stride=2, max_pool=True,
-                        pool_stride=2, relu=True)
+                        kernel_size=3, conv_stride=2, max_pool=False, relu=True)
 
         # input 62x62x62, output 60x60x60
+        # input 69x69x69, output 67x67x67
         self.conv5 = ConvolutionBlock(num_kernels[2], num_kernels[3],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 60x60x60, output 58x58x58
+        # input 67x67x67, output 65x65x65
         self.conv6 = ConvolutionBlock(num_kernels[3], num_kernels[4],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 58x58x58, output 56x56x56
+        # input 65x65x65, output 63x63x63
         self.conv7 = ConvolutionBlock(num_kernels[3], num_kernels[4],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 56x56x56, output 13x13x13
+        # input 63x63x63, output 31x31x31
         self.conv8 = ConvolutionBlock(num_kernels[4], num_kernels[5],
-                        kernel_size=3, conv_stride=2, max_pool=True,
-                        pool_stride=2, relu=True)
+                        kernel_size=3, conv_stride=2, max_pool=False, relu=True)
 
         # input 13x13x13, output 11x11x11
+        # input 31x31x31, output 29x29x29
         self.conv9 = ConvolutionBlock(num_kernels[5], num_kernels[6],
                         kernel_size=3, conv_stride=1, max_pool=False, relu=True)
         # input 11x11x11, output 9x9x9
+        # input 29x29x29, output 14x14x14
         self.conv10 = ConvolutionBlock(num_kernels[6], num_kernels[7],
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
+                        kernel_size=3, conv_stride=2, max_pool=False, relu=True)
         # input 9x9x9, output 7x7x7
+        # input 14x14x14, output 6x6x6
         self.conv11 = ConvolutionBlock(num_kernels[6], num_kernels[7],
-                        kernel_size=3, conv_stride=1, max_pool=False, relu=True)
+                        kernel_size=3, conv_stride=2, max_pool=False, relu=True)
         # input 7x7x7, output 3x3x3
+        # input 6x6x6, output 2x2x2
         self.conv12 = ConvolutionBlock(num_kernels[7], num_kernels[8],
                         kernel_size=3, conv_stride=2, max_pool=False, relu=True)
 
         classification_layers = [
-            nn.Linear(3*3*3*num_kernels[-1], 128),
+            nn.Linear(2*2*2*num_kernels[-1], 128),
             nn.ReLU(True),
             nn.Linear(128, 32),
             nn.ReLU(True),
@@ -327,7 +342,7 @@ class HosseiniDeep(nn.Module):
         conv9 = self.conv9(conv8)
         conv10 = self.conv10(conv9)
         conv11  = self.conv11(conv10)
-        conv12 = self.conv12(conv11 + conv9[:, :, 2:-2, 2:-2, 2:-2])
+        conv12 = self.conv12(conv11)
 
         hidden = conv12.view(len(x), -1)
         return self.classify(hidden)
