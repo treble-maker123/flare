@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import multiprocessing as mp
+from random import randint
 
 from torch.utils.data import DataLoader
-from pdb import set_trace
 
 from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from normalized_dataset import NormalizedDataset
@@ -19,18 +19,21 @@ from slice_dataset import SliceDataset
 
 from utils.loader import invalid_collate
 
+from pdb import set_trace
+
 class Engine:
-    def __init__(self, config, tb_writer, **kwargs):
+    def __init__(self, config, tb_writer, logger, **kwargs):
         device = kwargs.get("device", None)
         model_path = kwargs.get("model_path", None)
 
         self.writer = tb_writer
+        self.logger = logger
         self._config = config
         self._setup_device(device)
         self.load_model(model_path)
         self._setup_data()
 
-    def pretrain(self):
+    def pretrain(self, epoch):
         device = self._device
         config = self._config
         model = self._model
@@ -63,6 +66,30 @@ class Engine:
             loss.backward()
             optimizer.step()
 
+            output = output.detach()
+
+            outputs = []
+            if output.shape[1] == 3:
+                outputs.append(output[:, 0, :, :, :])
+                outputs.append(output[:, 1, :, :, :])
+                outputs.append(output[:, 2, :, :, :])
+            else:
+                outputs.append(output)
+
+            if randint(1, 100) <= 10:
+                # randomly pick one image to write to tensorboard
+                img_idx = randint(0, len(output) - 1)
+                # pick the middle slice
+                mid_idx = output.shape[-1] // 2
+                for idx, o in enumerate(outputs):
+                    self.writer.add_image("Channel {}; 1st idx".format(idx+1),
+                                        o[img_idx, mid_idx, :, :].unsqueeze(0),
+                                        global_step=epoch, dataformats="CHW")
+                    self.writer.add_image("Channel {}; 2nd idx".format(idx+1),
+                                        o[img_idx, :, mid_idx, :].unsqueeze(0), global_step=epoch, dataformats="CHW")
+                    self.writer.add_image("Channel {}; 3rd idx".format(idx+1),
+                                        o[img_idx, :, :, mid_idx].unsqueeze(0), global_step=epoch, dataformats="CHW")
+
             losses.append(loss.item())
             if num_iter % print_iter == 0:
                 print("\tIteration {}: {}".format(num_iter, loss.item()))
@@ -91,9 +118,11 @@ class Engine:
 
         optim_params = {
             "lr": config["train"]["optim"]["learn_rate"],
-            "weight_decay": config["train"]["optim"]["weight_decay"]
+            "weight_decay": config["train"]["optim"]["weight_decay"],
+            # "momentum": config["train"]["optim"]["momentum"]
         }
         optimizer = optim.Adam(model.parameters(), **optim_params)
+        # optimizer = optim.SGD(model.parameters(), **optim_params)
 
         losses = []
         tally = {
@@ -130,14 +159,6 @@ class Engine:
             optimizer.step()
 
             losses.append(loss.item())
-            if num_iter % print_iter == 0:
-                print("\tIteration {}: {}".format(num_iter, loss.item()))
-
-        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
-        print("\tTrain correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
-                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
-                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
-                        tally["Total"][0], tally["Total"][1], pct_correct))
 
         return {
             "loss_history": losses,
@@ -186,12 +207,6 @@ class Engine:
                     tally = self._add_to_tally(labels, correct, tally)
 
                 losses.append(loss.item())
-
-        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
-        print("\tValid correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
-                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
-                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
-                        tally["Total"][0], tally["Total"][1], pct_correct))
 
         return {
             "loss_history": losses,
@@ -291,6 +306,7 @@ class Engine:
     def load_model(self, model_path=None):
         config = self._config
         model_class = config["model"]['class']
+        n_channels = len(config["image_col"])
 
         if model_class == "vanilla_cae":
             print("Using vanilla_cae model.")
@@ -306,16 +322,15 @@ class Engine:
             self._model = Hosseini()
         elif model_class == "hosseini_three_layer":
             print("Using Three-Layer Hosseini model.")
-            self._model = HosseiniThreeLayer()
+            self._model = HosseiniThreeLayer(num_channels=n_channels)
         elif model_class == "hosseini_simple":
             print("Using simple Hosseini model with two-layer autoencoder.")
             self._model = HosseiniSimple()
         elif model_class == "hosseini_deep":
             print("Using deep Hosseini model.")
-            self._model = HosseiniDeep()
+            self._model = HosseiniDeep(num_channels=n_channels)
         elif model_class == "deep_mri":
             print("Using deep MRI model.")
-            n_channels = len(config["image_col"])
             self._model = DeepMRI(num_channels=n_channels)
         elif model_class == "2d":
             print("Using 2D deep learning model.")

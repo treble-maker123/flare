@@ -157,7 +157,6 @@ class NormalizedDataset(Dataset):
             return df[:]
 
     def _get_data(self, mapping_path):
-        print(mapping_path)
         if not os.path.exists(mapping_path):
             raise Exception("Failed to create dataset, \"{}\" does not exist! Run \"utils/normalized_mapping.py\" script to generate mapping."
                 .format(mapping_path))
