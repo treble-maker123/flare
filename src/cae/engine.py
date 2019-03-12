@@ -15,6 +15,7 @@ from models.hosseini import Hosseini, HosseiniThreeLayer, HosseiniSimple, Hossei
 from models.ae_cnn import AE_CNN
 from models.two_d import TwoD
 from models.deep_mri import DeepMRI
+from models.deep_ae_mri import DeepAutoencMRI
 from slice_dataset import SliceDataset
 
 from utils.loader import invalid_collate
@@ -332,6 +333,9 @@ class Engine:
         elif model_class == "deep_mri":
             print("Using deep MRI model.")
             self._model = DeepMRI(num_channels=n_channels)
+        elif model_class == "deep_ae_mri":
+            print("Using deep AE MRI model")
+            self._model = DeepAutoencMRI(num_channels=n_channels)
         elif model_class == "2d":
             print("Using 2D deep learning model.")
             n_channels = len(config["image_col"])
