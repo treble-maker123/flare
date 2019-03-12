@@ -225,6 +225,8 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
 
+    user_name = str(Path.home()).split("/")[2]
+    home_dir = "/mnt/nfs/work1/mfiterau/{}/".format(user_name)
     tb_logs_path = "{}/tensorboard_logs".format(Path.home())
     mkdir(tb_logs_path)
 
