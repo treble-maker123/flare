@@ -226,9 +226,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     user_name = str(Path.home()).split("/")[2]
-    home_dir = "/mnt/nfs/work1/mfiterau/{}/".format(user_name)
-    tb_logs_path = "{}/tensorboard_logs".format(Path.home())
-    mkdir(tb_logs_path)
+    home_dir = "/mnt/nfs/work1/mfiterau/{}".format(user_name)
+    tb_logs_path = "{}/tensorboard_logs".format(home_dir)
 
     parser.add_argument("--config", type=str, default="config/default.yaml")
     parser.add_argument("--run_id", type=str,
