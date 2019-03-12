@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH --job-name=densenet
+#SBATCH --job-name=densenet_lr.01
 #SBATCH -e outputs/errors/%j.txt        # File to which STDERR will be written
 #SBATCH --output=outputs/logs/%j.txt    # Output file
 #SBATCH --partition=m40-long
@@ -9,6 +9,6 @@
 #SBATCH --mem=90000
 #SBATCH --gres=gpu:2
 
-python3 densenet.py
+python3 densenet_from_checkpoint.py
 sleep 1
 exit
