@@ -174,7 +174,7 @@ class HosseiniThreeLayer(nn.Module):
         return torch.sigmoid(deconv4)
 
     def loss(self, x, y):
-        return F.cross_entropy(x, y)
+        return F.cross_entropy(x, y), None
 
     def reconstruction_loss(self, x, y, hidden=None):
         loss = F.mse_loss(x, y)
