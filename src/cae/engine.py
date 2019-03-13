@@ -53,8 +53,6 @@ class Engine:
         losses = []
 
         for num_iter, (x, y) in enumerate(self.pretrain_loader):
-            if len(x) < self._gpu_count * 2: # skip for BatchNorm1d
-                continue
 
             optimizer.zero_grad()
 

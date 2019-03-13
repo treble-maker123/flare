@@ -18,10 +18,10 @@ label_col: label
 
 data:
     set_name: normalized
-    max_workers: 6
+    max_workers: 0
     valid_split: 0.2
     test_split: 0.1
-    limit: -1
+    limit: 20
 
 model:
     class: deep_ae_mri
@@ -29,15 +29,15 @@ model:
     num_blocks: [1, 1, 1, 1, 1]
 
 pretrain:
-    num_epochs: 0
-    batch_size: 6
+    num_epochs: 1
+    batch_size: 4
 
 train:
-    num_epochs: 100
     optim:
         learn_rate: 0.01
         weight_decay: 0.0001
         momentum: 0.9
+    num_epochs: 1
     batch_size: 8
     print_iter: 5
     save_model: True

@@ -92,6 +92,9 @@ class Hosseini(nn.Module):
 
         return loss
 
+    def freeze(self):
+        pass
+
 class HosseiniThreeLayer(nn.Module):
     '''
     Model similart o Hosseini but has a three-layer autoencoder, another convolution layer for classification, as well as more kernels

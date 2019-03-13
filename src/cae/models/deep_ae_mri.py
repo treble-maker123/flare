@@ -72,15 +72,11 @@ class DeepAutoencMRI(nn.Module):
                                     bottleneck=True, dropout=dropout)
 
         self.ds5 = nn.Sequential(
-            # input 8, output 6
-            nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0),
+            # input 8, output 4
+            nn.Conv3d(512, 512, kernel_size=3, stride=2, padding=1),
             nn.BatchNorm3d(512),
             nn.ReLU(),
-            # input 6, output 4
-            nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0),
-            nn.BatchNorm3d(512),
-            nn.ReLU(),
-            # input 4, output 2
+            # input 4, output 1
             nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0),
             nn.BatchNorm3d(512),
             nn.ReLU(),
@@ -89,9 +85,6 @@ class DeepAutoencMRI(nn.Module):
         self.classification_dropout = nn.Dropout(dropout)
 
         classification_layers = [
-            # nn.Linear(1024, 512),
-            # nn.BatchNorm1d(512),
-            # nn.ReLU(),
             nn.Linear(2*2*2*512, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
@@ -104,15 +97,7 @@ class DeepAutoencMRI(nn.Module):
         self.classify = nn.Sequential(*classification_layers)
 
     def forward(self, x):
-        l1 = self.input_layer(x)
-
-        l2 = self.ds1(self.block1(l1))
-        l3 = self.ds2(self.block2(l2))
-        l4 = self.ds3(self.block3(l3))
-        l5 = self.ds4(self.block4(l4))
-        final_conv = self.ds5(self.block5(l5))
-
-        # pooled = self.global_pool(final_conv)
+        final_conv = self.encode(x)
 
         flattened = final_conv.view(len(x), -1)
         dropped = self.classification_dropout(flattened)
@@ -120,7 +105,62 @@ class DeepAutoencMRI(nn.Module):
         return self.classify(dropped)
 
     def reconstruct(self, x):
-        pass
+        hidden = self.encode(x)
+
+        weight_flip = (0, 1, 3, 2, 4)
+
+        ds5_1, ds5_2 = self.ds5[0], self.ds5[3]
+        deconv2 = F.conv_transpose3d(hidden, ds5_2.weight.flip(*weight_flip),
+                                    stride=1)
+        F.relu(deconv2, inplace=True)
+        deconv3 = F.conv_transpose3d(deconv2, ds5_1.weight.flip(*weight_flip),
+                                    stride=2, padding=1, output_padding=1)
+        F.relu(deconv3, inplace=True)
+
+        deconv4 = self.block5.backward(deconv3)
+        F.relu(deconv4, inplace=True)
+
+        ds4 = self.ds4[0]
+        deconv5 = F.conv_transpose3d(deconv4, ds4.weight.flip(*weight_flip),
+                                    stride=2)
+        F.relu(deconv5, inplace=True)
+        deconv6 = self.block4.backward(deconv5)
+        F.relu(deconv6, inplace=True)
+
+        ds3 = self.ds3[0]
+        deconv7 = F.conv_transpose3d(deconv6, ds3.weight.flip(*weight_flip),
+                                    stride=2)
+        F.relu(deconv7, inplace=True)
+        deconv8 = self.block3.backward(deconv7)
+        F.relu(deconv8, inplace=True)
+
+        ds2 = self.ds2[0]
+        deconv9 = F.conv_transpose3d(deconv8, ds2.weight.flip(*weight_flip),
+                                    stride=2)
+        F.relu(deconv9, inplace=True)
+        deconv10 = self.block2.backward(deconv9)
+        F.relu(deconv10, inplace=True)
+
+        ds1 = self.ds1[0]
+        deconv11 = F.conv_transpose3d(deconv10, ds1.weight.flip(*weight_flip),
+                                    stride=2)
+        F.relu(deconv11, inplace=True)
+        deconv12 = self.block1.backward(deconv11)
+        F.relu(deconv12, inplace=True)
+        set_trace()
+
+        # TODO: Keep getting out of memory
+
+        # CUDA out of memory. Tried to allocate 1.34 GiB (GPU 0; 22.41 GiB total capacity; 11.26 GiB already allocated; 231.06 MiB free; 923.00 KiB cached)
+
+    def encode(self, x):
+        l1 = self.input_layer(x)
+        l2 = self.ds1(self.block1(l1))
+        l3 = self.ds2(self.block2(l2))
+        l4 = self.ds3(self.block3(l3))
+        l5 = self.ds4(self.block4(l4))
+
+        return self.ds5(self.block5(l5))
 
     def loss(self, pred, target):
         return F.cross_entropy(pred, target)
@@ -179,7 +219,7 @@ class ResidualStack(nn.Module):
     def backward(self, x):
         result = x
 
-        for layer in reversed(self.blocks.children()):
+        for layer in reversed(list(self.blocks.children())):
             result = layer.backward(result)
 
         return result
@@ -249,15 +289,18 @@ class ResidualBlock(nn.Module):
     def backward(self, hidden):
         weight_flip = (0, 1, 3, 2, 4)
 
-        l3 = F.conv_transpose3d(hidden, self.conv3.weight.flip(**weight_flip),
-                                bias=self.conv3.bias, output_padding=0)
-        l3 = F.relu(self.bn3_back(l3))
+        # reverse the padding
+        hidden = hidden[:, :, 1:-1, 1:-1, 1:-1]
 
-        l2 = F.conv_transpose3d(l3, self.conv2.weight.flip(**weight_flip),
-                                bias=self.conv2.bias, output_padding=0)
-        l2 = F.relu(self.bn2_back(l2))
+        l3 = F.conv_transpose3d(hidden, self.conv3.weight.flip(*weight_flip),
+                                stride=1)
+        F.relu(self.bn3_back(l3), inplace=True)
 
-        l1 = F.conv_transpose3d(l2, self.conv1.weight.flip(**weight_flip),
-                                bias=self.conv1.bias, output_padding=0)
+        l2 = F.conv_transpose3d(l3, self.conv2.weight.flip(*weight_flip),
+                                stride=1)
+        F.relu(self.bn2_back(l2), inplace=True)
 
-        return torch.sigmoid(l1)
+        l1 = F.conv_transpose3d(l2, self.conv1.weight.flip(*weight_flip),
+                                stride=1)
+
+        return l1
