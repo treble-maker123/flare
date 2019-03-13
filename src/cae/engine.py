@@ -53,16 +53,17 @@ class Engine:
         losses = []
 
         for num_iter, (x, y) in enumerate(self.pretrain_loader):
+
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
 
             if type(model) == torch.nn.DataParallel:
-                output = model.module.reconstruct(x)
-                loss = model.module.reconstruction_loss(output, x)
+                output, hidden_rep = model.module.reconstruct(x)
+                loss = model.module.reconstruction_loss(output, x, hidden_rep)
             else:
-                output = model.reconstruct(x)
-                loss = model.reconstruction_loss(output, x)
+                output, hidden_rep = model.reconstruct(x)
+                loss = model.reconstruction_loss(output, x, hidden_rep)
 
             loss.backward()
             optimizer.step()
@@ -120,10 +121,10 @@ class Engine:
         optim_params = {
             "lr": config["train"]["optim"]["learn_rate"],
             "weight_decay": config["train"]["optim"]["weight_decay"],
-            # "momentum": config["train"]["optim"]["momentum"]
+            "momentum": config["train"]["optim"]["momentum"]
         }
-        optimizer = optim.Adam(model.parameters(), **optim_params)
-        # optimizer = optim.SGD(model.parameters(), **optim_params)
+        # optimizer = optim.Adam(model.parameters(), **optim_params)
+        optimizer = optim.SGD(model.parameters(), **optim_params)
 
         losses = []
         tally = {
@@ -135,6 +136,9 @@ class Engine:
         }
 
         for num_iter, (x, y) in enumerate(self.train_loader):
+            if len(x) < self._gpu_count * 2: # skip for BatchNorm1d
+                continue
+
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
@@ -187,6 +191,7 @@ class Engine:
 
         with torch.no_grad():
             for num_iter, (x, y) in enumerate(self.valid_loader):
+
                 x = x.to(device=device).float()
                 y = y.to(device=device).long()
 
@@ -335,7 +340,8 @@ class Engine:
             self._model = DeepMRI(num_channels=n_channels)
         elif model_class == "deep_ae_mri":
             print("Using deep AE MRI model")
-            self._model = DeepAutoencMRI(num_channels=n_channels)
+            self._model = DeepAutoencMRI(num_channels=n_channels,
+                                num_blocks=config["model"]["num_blocks"])
         elif model_class == "2d":
             print("Using 2D deep learning model.")
             n_channels = len(config["image_col"])

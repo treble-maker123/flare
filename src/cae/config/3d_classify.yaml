@@ -25,17 +25,19 @@ data:
 
 model:
     class: deep_ae_mri
+    # number of residual blocks per group
+    num_blocks: [1, 1, 1, 1, 1]
 
 pretrain:
-    num_epochs: 0
-    batch_size: 6
+    num_epochs: 1
+    batch_size: 4
 
 train:
-    num_epochs: 1
     optim:
         learn_rate: 0.01
         weight_decay: 0.0001
         momentum: 0.9
+    num_epochs: 1
     batch_size: 8
     print_iter: 5
     save_model: True
@@ -47,4 +49,4 @@ test:
     batch_size: 8
 
 
-remarks: Autoencoder architecture
+remarks: 21-layers without gloabl average pooling and uses SGD

@@ -92,6 +92,9 @@ class Hosseini(nn.Module):
 
         return loss
 
+    def freeze(self):
+        pass
+
 class HosseiniThreeLayer(nn.Module):
     '''
     Model similart o Hosseini but has a three-layer autoencoder, another convolution layer for classification, as well as more kernels
@@ -174,7 +177,7 @@ class HosseiniThreeLayer(nn.Module):
         return torch.sigmoid(deconv4)
 
     def loss(self, x, y):
-        return F.cross_entropy(x, y)
+        return F.cross_entropy(x, y), None
 
     def reconstruction_loss(self, x, y, hidden=None):
         loss = F.mse_loss(x, y)
