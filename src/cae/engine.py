@@ -347,7 +347,7 @@ class Engine:
             n_channels = len(config["image_col"])
             self._model = TwoD(num_channels=n_channels)
         elif model_class == "ae_cnn_patches":
-            print("Using ae cnn pathces model.")
+            print("Using ae cnn patches model.")
             self._model = AE_CNN()
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
