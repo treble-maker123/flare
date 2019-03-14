@@ -12,7 +12,7 @@ class DeepAutoencMRI(nn.Module):
             |_ 4 images per GPU with num_blocks [1,1,1,1,1]
             |_ 3 images per GPU with num_blocks [2,2,2,2,2]
         - Reconstruction-only (pre-training batch size):
-            |_ 3 images per GPU with num_blocks [1,1,1,1,1]
+            |_ 2 images per GPU with num_blocks [1,1,1,1,1]
         - Classification with frozen weights
             |_ 10 images per GPU with num_blocks [1,1,1,1,1]
     '''
@@ -27,35 +27,30 @@ class DeepAutoencMRI(nn.Module):
         # input 145, output 143
         self.conv1 = nn.Conv3d(num_channels, 32, kernel_size=3, stride=1,
                                 padding=0)
-        self.bn1 = nn.BatchNorm3d(32)
 
         # input 143, output 143
         self.block1 = ResidualStack(32, num_blocks=num_blocks[0],
                                     bottleneck=True, dropout=dropout)
         # input 143, output 71
         self.conv2 = nn.Conv3d(32, 64, kernel_size=3, stride=2, padding=0)
-        self.bn2 = nn.BatchNorm3d(64)
 
         # input 71, output 71
         self.block2 = ResidualStack(64, num_blocks=num_blocks[1],
                                     bottleneck=True, dropout=dropout)
         # input 71, output 35
         self.conv3 = nn.Conv3d(64, 128, kernel_size=3, stride=2, padding=0)
-        self.bn3 = nn.BatchNorm3d(128)
 
         # input 35, output 35
         self.block3 = ResidualStack(128, num_blocks=num_blocks[2],
                                     bottleneck=True, dropout=dropout)
         # input 35, output 17
         self.conv4 = nn.Conv3d(128, 256, kernel_size=3, stride=2, padding=0)
-        self.bn4 = nn.BatchNorm3d(256)
 
         # input 17, output 17
         self.block4 = ResidualStack(256, num_blocks=num_blocks[3],
                                     bottleneck=True, dropout=dropout)
         # input 17, output 8
         self.conv5 = nn.Conv3d(256, 512, kernel_size=3, stride=2, padding=0)
-        self.bn5 = nn.BatchNorm3d(512)
 
         # input 8, output 8
         self.block5 = ResidualStack(512, num_blocks=num_blocks[4],
@@ -83,75 +78,91 @@ class DeepAutoencMRI(nn.Module):
 
         self.classify = nn.Sequential(*classification_layers)
 
+        # decoder batch norm layers
+        self.back_bn1 = nn.BatchNorm3d(512)
+        self.back_bn2 = nn.BatchNorm3d(512)
+        self.back_bn3 = nn.BatchNorm3d(512)
+
+        self.back_bn4 = nn.BatchNorm3d(256)
+        self.back_bn5 = nn.BatchNorm3d(256)
+
+        self.back_bn6 = nn.BatchNorm3d(128)
+        self.back_bn7 = nn.BatchNorm3d(128)
+
+        self.back_bn8 = nn.BatchNorm3d(64)
+        self.back_bn9 = nn.BatchNorm3d(64)
+
+        self.back_bn10 = nn.BatchNorm3d(32)
+        self.back_bn11 = nn.BatchNorm3d(32)
+
     def forward(self, x, reconstruct=False):
-        hidden = self.encode(x)
+        l1 = self.conv1(x)
+        l2 = self.conv2(self.block1(l1))
+        l3 = self.conv3(self.block2(l2))
+        l4 = self.conv4(self.block3(l3))
+        l5 = self.conv5(self.block4(l4))
+        l6 = F.relu(self.bn6(self.conv6(self.block5(l5))))
+        hidden = F.relu(self.bn7(self.conv7(l6)))
 
         if reconstruct:
-            return self.reconstruct(hidden)
+            weight_flip = (0, 1, 3, 2, 4)
+
+            conv7, conv6 = self.conv7, self.conv6
+
+            # -> l6
+            deconv2 = F.conv_transpose3d(hidden,
+                        conv7.weight.flip(*weight_flip), stride=1)
+            deconv2 = F.relu(self.back_bn1(deconv2))
+
+            deconv3 = F.conv_transpose3d(deconv2,
+                        conv6.weight.flip(*weight_flip), stride=2, padding=1,
+                        output_padding=1)
+            deconv3 = F.relu(self.back_bn2(deconv3))
+
+            # -> l5
+            deconv4 = F.relu(self.back_bn3(self.block5.backward(deconv3)))
+
+            conv5 = self.conv5
+            deconv5 = F.conv_transpose3d(deconv4,
+                        conv5.weight.flip(*weight_flip), stride=2)
+            deconv5 = F.relu(self.back_bn4(deconv5))
+
+            # -> l4
+            deconv6 = F.relu(self.back_bn5(self.block4.backward(deconv5)))
+
+            conv4 = self.conv4
+            deconv7 = F.conv_transpose3d(deconv6,
+                        conv4.weight.flip(*weight_flip), stride=2)
+            deconv7 = F.relu(self.back_bn6(deconv7))
+
+            # -> l3
+            deconv8 = F.relu(self.back_bn7(self.block3.backward(deconv7)))
+
+            conv3 = self.conv3
+            deconv9 = F.conv_transpose3d(deconv8,
+                        conv3.weight.flip(*weight_flip), stride=2)
+            deconv9 = F.relu(self.back_bn8(deconv9))
+
+            # -> l2
+            deconv10 = F.relu(self.back_bn9(self.block2.backward(deconv9)))
+
+            conv2 = self.conv2
+            deconv11 = F.conv_transpose3d(deconv10,
+                        conv2.weight.flip(*weight_flip), stride=2)
+            deconv11 = F.relu(self.back_bn10(deconv11))
+
+            deconv12 = F.relu(self.back_bn11(self.block1.backward(deconv11)))
+
+            conv1 = self.conv1
+            deconv13 = F.conv_transpose3d(deconv12,
+                        conv1.weight.flip(*weight_flip), stride=1)
+
+            return torch.sigmoid(deconv13), hidden
         else:
             flattened = hidden.view(len(x), -1)
             dropped = self.classification_dropout(flattened)
 
             return self.classify(dropped)
-
-    def reconstruct(self, hidden):
-        weight_flip = (0, 1, 3, 2, 4)
-
-        conv7, conv6 = self.conv7, self.conv6
-        deconv2 = F.conv_transpose3d(hidden, conv7.weight.flip(*weight_flip),
-                                    stride=1)
-        F.relu(deconv2, inplace=True)
-        deconv3 = F.conv_transpose3d(deconv2, conv6.weight.flip(*weight_flip),
-                                    stride=2, padding=1, output_padding=1)
-        F.relu(deconv3, inplace=True)
-
-        deconv4 = self.block5.backward(deconv3)
-        F.relu(deconv4, inplace=True)
-
-        conv5 = self.conv5
-        deconv5 = F.conv_transpose3d(deconv4, conv5.weight.flip(*weight_flip),
-                                    stride=2)
-        F.relu(deconv5, inplace=True)
-        deconv6 = self.block4.backward(deconv5)
-        F.relu(deconv6, inplace=True)
-
-        conv4 = self.conv4
-        deconv7 = F.conv_transpose3d(deconv6, conv4.weight.flip(*weight_flip),
-                                    stride=2)
-        F.relu(deconv7, inplace=True)
-        deconv8 = self.block3.backward(deconv7)
-        F.relu(deconv8, inplace=True)
-
-        conv3 = self.conv3
-        deconv9 = F.conv_transpose3d(deconv8, conv3.weight.flip(*weight_flip),
-                                    stride=2)
-        F.relu(deconv9, inplace=True)
-        deconv10 = self.block2.backward(deconv9)
-        F.relu(deconv10, inplace=True)
-
-        conv2 = self.conv2
-        deconv11 = F.conv_transpose3d(deconv10, conv2.weight.flip(*weight_flip),
-                                    stride=2)
-        F.relu(deconv11, inplace=True)
-        deconv12 = self.block1.backward(deconv11)
-        F.relu(deconv12, inplace=True)
-
-        conv1 = self.conv1
-        deconv13 = F.conv_transpose3d(deconv12, conv1.weight.flip(*weight_flip),
-                                    stride=1)
-
-        return torch.sigmoid(deconv13), hidden
-
-    def encode(self, x):
-        l1 = F.relu(self.bn1(self.conv1(x)))
-        l2 = F.relu(self.bn2(self.conv2(l1)))
-        l3 = F.relu(self.bn3(self.conv3(l2)))
-        l4 = F.relu(self.bn4(self.conv4(l3)))
-        l5 = F.relu(self.bn5(self.conv5(l4)))
-        l6 = F.relu(self.bn6(self.conv6(l5)))
-        l7 = F.relu(self.bn7(self.conv7(l6)))
-
-        return l7
 
     def loss(self, pred, target):
         return F.cross_entropy(pred, target)
@@ -170,31 +181,21 @@ class DeepAutoencMRI(nn.Module):
         self.block1.freeze()
         for params in self.conv1.parameters():
             params.requires_grad = False
-        for params in self.bn1.parameters():
-            params.requires_grad = False
 
         self.block2.freeze()
         for params in self.conv2.parameters():
-            params.requires_grad = False
-        for params in self.bn2.parameters():
             params.requires_grad = False
 
         self.block3.freeze()
         for params in self.conv3.parameters():
             params.requires_grad = False
-        for params in self.bn3.parameters():
-            params.requires_grad = False
 
         self.block4.freeze()
         for params in self.conv4.parameters():
             params.requires_grad = False
-        for params in self.bn4.parameters():
-            params.requires_grad = False
 
         self.block5.freeze()
         for params in self.conv5.parameters():
-            params.requires_grad = False
-        for params in self.bn5.parameters():
             params.requires_grad = False
 
         for params in self.conv6.parameters():
@@ -298,9 +299,9 @@ class ResidualBlock(nn.Module):
         weight_flip = (0, 1, 3, 2, 4)
 
         # reverse the padding
-        hidden = hidden[:, :, 1:-1, 1:-1, 1:-1]
+        shrunk = hidden[:, :, 1:-1, 1:-1, 1:-1]
 
-        l3 = F.conv_transpose3d(hidden, self.conv3.weight.flip(*weight_flip),
+        l3 = F.conv_transpose3d(shrunk, self.conv3.weight.flip(*weight_flip),
                                 stride=1)
         F.relu(self.bn3_back(l3), inplace=True)
 
@@ -311,4 +312,4 @@ class ResidualBlock(nn.Module):
         l1 = F.conv_transpose3d(l2, self.conv1.weight.flip(*weight_flip),
                                 stride=1)
 
-        return l1
+        return l1 + hidden

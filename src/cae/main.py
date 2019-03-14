@@ -54,6 +54,8 @@ def main(config_path, run_id, tb_writer):
 
             pretrain_result = engine.pretrain(epoch=epoch)
             pretrain_history.append(pretrain_result)
+            tb_writer.add_scalar("misc/loss/Pre-training",
+                        pretrain_result["average_loss"], epoch)
 
             logger.log("\tAverage training loss: {}"
                 .format(pretrain_result["average_loss"]), epoch=epoch)

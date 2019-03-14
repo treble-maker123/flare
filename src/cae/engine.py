@@ -93,7 +93,8 @@ class Engine:
 
             losses.append(loss.item())
             if num_iter % print_iter == 0:
-                print("\tIteration {}: {}".format(num_iter, loss.item()))
+                print("\tIteration {} ({}): {}"
+                            .format(num_iter, loss.item(), y.item()))
 
         return {
             "loss_history": losses,
