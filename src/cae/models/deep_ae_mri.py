@@ -23,6 +23,7 @@ class DeepAutoencMRI(nn.Module):
         num_channels = kwargs.get("num_channels", 1)
         num_blocks = kwargs.get("num_blocks", [1, 1, 1, 1, 1])
         dropout = kwargs.get("dropout", 0.0)
+        self.sparsity = kwargs.get("sparsity", 0.0)
 
         # input 145, output 143
         self.conv1 = nn.Conv3d(num_channels, 32, kernel_size=3, stride=1,
@@ -171,7 +172,7 @@ class DeepAutoencMRI(nn.Module):
         loss = F.mse_loss(pred, target)
 
         if hidden_state is not None:
-            loss += torch.sum(torch.abs(hidden_state))
+            loss += self.sparsity * torch.sum(torch.abs(hidden_state))
 
         return loss
 

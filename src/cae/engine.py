@@ -94,7 +94,7 @@ class Engine:
             losses.append(loss.item())
             if num_iter % print_iter == 0:
                 print("\tIteration {} ({}): {}"
-                            .format(num_iter, loss.item(), y.item()))
+                            .format(num_iter, y.detach(), loss.item()))
 
         return {
             "loss_history": losses,
@@ -348,7 +348,8 @@ class Engine:
         elif model_class == "deep_ae_mri":
             print("Using deep AE MRI model")
             self._model = DeepAutoencMRI(num_channels=n_channels,
-                                num_blocks=config["model"]["num_blocks"])
+                                num_blocks=config["model"]["num_blocks"],
+                                sparsity=config["pretrain"]["sparsity"])
         elif model_class == "2d":
             print("Using 2D deep learning model.")
             n_channels = len(config["image_col"])
