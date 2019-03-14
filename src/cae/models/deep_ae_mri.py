@@ -8,9 +8,13 @@ class DeepAutoencMRI(nn.Module):
     '''Super deep autoencoder network with pretraining routine.
 
     MUST RUN ON M40 GPU!
-        - Classification-only:
+        - Classification-only (classification batch size):
             |_ 4 images per GPU with num_blocks [1,1,1,1,1]
             |_ 3 images per GPU with num_blocks [2,2,2,2,2]
+        - Reconstruction-only (pre-training batch size):
+            |_ 3 images per GPU with num_blocks [1,1,1,1,1]
+        - Classification with frozen weights
+            |_ 10 images per GPU with num_blocks [1,1,1,1,1]
     '''
     def __init__(self, **kwargs):
         super().__init__()
@@ -79,17 +83,18 @@ class DeepAutoencMRI(nn.Module):
 
         self.classify = nn.Sequential(*classification_layers)
 
-    def forward(self, x):
-        final_conv = self.encode(x)
-
-        flattened = final_conv.view(len(x), -1)
-        dropped = self.classification_dropout(flattened)
-
-        return self.classify(dropped)
-
-    def reconstruct(self, x):
+    def forward(self, x, reconstruct=False):
         hidden = self.encode(x)
 
+        if reconstruct:
+            return self.reconstruct(hidden)
+        else:
+            flattened = hidden.view(len(x), -1)
+            dropped = self.classification_dropout(flattened)
+
+            return self.classify(dropped)
+
+    def reconstruct(self, hidden):
         weight_flip = (0, 1, 3, 2, 4)
 
         conv7, conv6 = self.conv7, self.conv6
@@ -130,7 +135,12 @@ class DeepAutoencMRI(nn.Module):
         F.relu(deconv11, inplace=True)
         deconv12 = self.block1.backward(deconv11)
         F.relu(deconv12, inplace=True)
-        set_trace()
+
+        conv1 = self.conv1
+        deconv13 = F.conv_transpose3d(deconv12, conv1.weight.flip(*weight_flip),
+                                    stride=1)
+
+        return torch.sigmoid(deconv13), hidden
 
     def encode(self, x):
         l1 = F.relu(self.bn1(self.conv1(x)))
@@ -157,47 +167,44 @@ class DeepAutoencMRI(nn.Module):
     def freeze(self):
         '''Freeze the weights of the convolution layers
         '''
-        for params in self.input_layer.params():
-            params.requires_grad = False
-
         self.block1.freeze()
-        for params in self.conv1.params():
+        for params in self.conv1.parameters():
             params.requires_grad = False
-        for params in self.bn1.params():
+        for params in self.bn1.parameters():
             params.requires_grad = False
 
         self.block2.freeze()
-        for params in self.conv2.params():
+        for params in self.conv2.parameters():
             params.requires_grad = False
-        for params in self.bn2.params():
+        for params in self.bn2.parameters():
             params.requires_grad = False
 
         self.block3.freeze()
-        for params in self.conv3.params():
+        for params in self.conv3.parameters():
             params.requires_grad = False
-        for params in self.bn3.params():
+        for params in self.bn3.parameters():
             params.requires_grad = False
 
         self.block4.freeze()
-        for params in self.conv4.params():
+        for params in self.conv4.parameters():
             params.requires_grad = False
-        for params in self.bn4.params():
+        for params in self.bn4.parameters():
             params.requires_grad = False
 
         self.block5.freeze()
-        for params in self.conv5.params():
+        for params in self.conv5.parameters():
             params.requires_grad = False
-        for params in self.bn5.params():
-            params.requires_grad = False
-
-        for params in self.conv6.params():
-            params.requires_grad = False
-        for params in self.bn6.params():
+        for params in self.bn5.parameters():
             params.requires_grad = False
 
-        for params in self.conv7.params():
+        for params in self.conv6.parameters():
             params.requires_grad = False
-        for params in self.bn7.params():
+        for params in self.bn6.parameters():
+            params.requires_grad = False
+
+        for params in self.conv7.parameters():
+            params.requires_grad = False
+        for params in self.bn7.parameters():
             params.requires_grad = False
 
 class ResidualStack(nn.Module):

@@ -57,11 +57,11 @@ class Engine:
 
             x = x.to(device=device).float()
 
+            output, hidden_rep = model(x, reconstruct=True)
+
             if type(model) == torch.nn.DataParallel:
-                output, hidden_rep = model.module.reconstruct(x)
                 loss = model.module.reconstruction_loss(output, x, hidden_rep)
             else:
-                output, hidden_rep = model.reconstruct(x)
                 loss = model.reconstruction_loss(output, x, hidden_rep)
 
             loss.backward()
@@ -116,6 +116,13 @@ class Engine:
 
         model = model.to(device=device)
         model.train()
+
+        if config["train"]["freeze_cnn"]:
+            self.logger.log("Training with CNN weights frozen.")
+            if type(model) == torch.nn.DataParallel:
+                model.module.freeze()
+            else:
+                model.freeze()
 
         optim_params = {
             "lr": config["train"]["optim"]["learn_rate"],
