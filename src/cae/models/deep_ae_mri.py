@@ -21,66 +21,49 @@ class DeepAutoencMRI(nn.Module):
         dropout = kwargs.get("dropout", 0.0)
 
         # input 145, output 143
-        self.input_layer = nn.Sequential(
-            nn.Conv3d(num_channels, 32, kernel_size=3, stride=1, padding=0),
-            nn.BatchNorm3d(32),
-            nn.ReLU()
-        )
+        self.conv1 = nn.Conv3d(num_channels, 32, kernel_size=3, stride=1,
+                                padding=0)
+        self.bn1 = nn.BatchNorm3d(32)
 
         # input 143, output 143
         self.block1 = ResidualStack(32, num_blocks=num_blocks[0],
                                     bottleneck=True, dropout=dropout)
         # input 143, output 71
-        self.ds1 = nn.Sequential(
-            nn.Conv3d(32, 64, kernel_size=3, stride=2, padding=0),
-            nn.BatchNorm3d(64),
-            nn.ReLU()
-        )
+        self.conv2 = nn.Conv3d(32, 64, kernel_size=3, stride=2, padding=0)
+        self.bn2 = nn.BatchNorm3d(64)
 
         # input 71, output 71
         self.block2 = ResidualStack(64, num_blocks=num_blocks[1],
                                     bottleneck=True, dropout=dropout)
         # input 71, output 35
-        self.ds2 = nn.Sequential(
-            nn.Conv3d(64, 128, kernel_size=3, stride=2, padding=0),
-            nn.BatchNorm3d(128),
-            nn.ReLU()
-        )
+        self.conv3 = nn.Conv3d(64, 128, kernel_size=3, stride=2, padding=0)
+        self.bn3 = nn.BatchNorm3d(128)
 
         # input 35, output 35
         self.block3 = ResidualStack(128, num_blocks=num_blocks[2],
                                     bottleneck=True, dropout=dropout)
         # input 35, output 17
-        self.ds3 = nn.Sequential(
-            nn.Conv3d(128, 256, kernel_size=3, stride=2, padding=0),
-            nn.BatchNorm3d(256),
-            nn.ReLU()
-        )
+        self.conv4 = nn.Conv3d(128, 256, kernel_size=3, stride=2, padding=0)
+        self.bn4 = nn.BatchNorm3d(256)
 
         # input 17, output 17
         self.block4 = ResidualStack(256, num_blocks=num_blocks[3],
                                     bottleneck=True, dropout=dropout)
         # input 17, output 8
-        self.ds4 = nn.Sequential(
-            nn.Conv3d(256, 512, kernel_size=3, stride=2, padding=0),
-            nn.BatchNorm3d(512),
-            nn.ReLU()
-        )
+        self.conv5 = nn.Conv3d(256, 512, kernel_size=3, stride=2, padding=0)
+        self.bn5 = nn.BatchNorm3d(512)
 
         # input 8, output 8
         self.block5 = ResidualStack(512, num_blocks=num_blocks[4],
                                     bottleneck=True, dropout=dropout)
 
-        self.ds5 = nn.Sequential(
-            # input 8, output 4
-            nn.Conv3d(512, 512, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm3d(512),
-            nn.ReLU(),
-            # input 4, output 1
-            nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0),
-            nn.BatchNorm3d(512),
-            nn.ReLU(),
-        )
+        # input 8, output 4
+        self.conv6 = nn.Conv3d(512, 512, kernel_size=3, stride=2, padding=1)
+        self.bn6 = nn.BatchNorm3d(512)
+
+        # input 4, output 1
+        self.conv7 = nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0)
+        self.bn7 = nn.BatchNorm3d(512)
 
         self.classification_dropout = nn.Dropout(dropout)
 
@@ -109,58 +92,56 @@ class DeepAutoencMRI(nn.Module):
 
         weight_flip = (0, 1, 3, 2, 4)
 
-        ds5_1, ds5_2 = self.ds5[0], self.ds5[3]
-        deconv2 = F.conv_transpose3d(hidden, ds5_2.weight.flip(*weight_flip),
+        conv7, conv6 = self.conv7, self.conv6
+        deconv2 = F.conv_transpose3d(hidden, conv7.weight.flip(*weight_flip),
                                     stride=1)
         F.relu(deconv2, inplace=True)
-        deconv3 = F.conv_transpose3d(deconv2, ds5_1.weight.flip(*weight_flip),
+        deconv3 = F.conv_transpose3d(deconv2, conv6.weight.flip(*weight_flip),
                                     stride=2, padding=1, output_padding=1)
         F.relu(deconv3, inplace=True)
 
         deconv4 = self.block5.backward(deconv3)
         F.relu(deconv4, inplace=True)
 
-        ds4 = self.ds4[0]
-        deconv5 = F.conv_transpose3d(deconv4, ds4.weight.flip(*weight_flip),
+        conv5 = self.conv5
+        deconv5 = F.conv_transpose3d(deconv4, conv5.weight.flip(*weight_flip),
                                     stride=2)
         F.relu(deconv5, inplace=True)
         deconv6 = self.block4.backward(deconv5)
         F.relu(deconv6, inplace=True)
 
-        ds3 = self.ds3[0]
-        deconv7 = F.conv_transpose3d(deconv6, ds3.weight.flip(*weight_flip),
+        conv4 = self.conv4
+        deconv7 = F.conv_transpose3d(deconv6, conv4.weight.flip(*weight_flip),
                                     stride=2)
         F.relu(deconv7, inplace=True)
         deconv8 = self.block3.backward(deconv7)
         F.relu(deconv8, inplace=True)
 
-        ds2 = self.ds2[0]
-        deconv9 = F.conv_transpose3d(deconv8, ds2.weight.flip(*weight_flip),
+        conv3 = self.conv3
+        deconv9 = F.conv_transpose3d(deconv8, conv3.weight.flip(*weight_flip),
                                     stride=2)
         F.relu(deconv9, inplace=True)
         deconv10 = self.block2.backward(deconv9)
         F.relu(deconv10, inplace=True)
 
-        ds1 = self.ds1[0]
-        deconv11 = F.conv_transpose3d(deconv10, ds1.weight.flip(*weight_flip),
+        conv2 = self.conv2
+        deconv11 = F.conv_transpose3d(deconv10, conv2.weight.flip(*weight_flip),
                                     stride=2)
         F.relu(deconv11, inplace=True)
         deconv12 = self.block1.backward(deconv11)
         F.relu(deconv12, inplace=True)
         set_trace()
 
-        # TODO: Keep getting out of memory
-
-        # CUDA out of memory. Tried to allocate 1.34 GiB (GPU 0; 22.41 GiB total capacity; 11.26 GiB already allocated; 231.06 MiB free; 923.00 KiB cached)
-
     def encode(self, x):
-        l1 = self.input_layer(x)
-        l2 = self.ds1(self.block1(l1))
-        l3 = self.ds2(self.block2(l2))
-        l4 = self.ds3(self.block3(l3))
-        l5 = self.ds4(self.block4(l4))
+        l1 = F.relu(self.bn1(self.conv1(x)))
+        l2 = F.relu(self.bn2(self.conv2(l1)))
+        l3 = F.relu(self.bn3(self.conv3(l2)))
+        l4 = F.relu(self.bn4(self.conv4(l3)))
+        l5 = F.relu(self.bn5(self.conv5(l4)))
+        l6 = F.relu(self.bn6(self.conv6(l5)))
+        l7 = F.relu(self.bn7(self.conv7(l6)))
 
-        return self.ds5(self.block5(l5))
+        return l7
 
     def loss(self, pred, target):
         return F.cross_entropy(pred, target)
@@ -180,23 +161,43 @@ class DeepAutoencMRI(nn.Module):
             params.requires_grad = False
 
         self.block1.freeze()
-        for params in self.ds1.params():
+        for params in self.conv1.params():
+            params.requires_grad = False
+        for params in self.bn1.params():
             params.requires_grad = False
 
         self.block2.freeze()
-        for params in self.ds2.params():
+        for params in self.conv2.params():
+            params.requires_grad = False
+        for params in self.bn2.params():
             params.requires_grad = False
 
         self.block3.freeze()
-        for params in self.ds3.params():
+        for params in self.conv3.params():
+            params.requires_grad = False
+        for params in self.bn3.params():
             params.requires_grad = False
 
         self.block4.freeze()
-        for params in self.ds4.params():
+        for params in self.conv4.params():
+            params.requires_grad = False
+        for params in self.bn4.params():
             params.requires_grad = False
 
         self.block5.freeze()
-        for params in self.ds5.params():
+        for params in self.conv5.params():
+            params.requires_grad = False
+        for params in self.bn5.params():
+            params.requires_grad = False
+
+        for params in self.conv6.params():
+            params.requires_grad = False
+        for params in self.bn6.params():
+            params.requires_grad = False
+
+        for params in self.conv7.params():
+            params.requires_grad = False
+        for params in self.bn7.params():
             params.requires_grad = False
 
 class ResidualStack(nn.Module):

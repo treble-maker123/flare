@@ -53,7 +53,6 @@ class Engine:
         losses = []
 
         for num_iter, (x, y) in enumerate(self.pretrain_loader):
-
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
