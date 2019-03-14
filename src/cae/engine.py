@@ -285,8 +285,7 @@ class Engine:
         }, tally
 
     def save_model(self, path, **kwargs):
-        device = kwargs.get("device", self._device)
-        model = self._model.to(device=device)
+        model = self._model.cpu()
 
         if type(model) == torch.nn.DataParallel:
             torch.save(model.module.state_dict(), path)
