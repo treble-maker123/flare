@@ -235,8 +235,8 @@ if __name__ == "__main__":
     tb_logs_path = "{}/tensorboard_logs".format(home_dir)
 
     parser.add_argument("--config", type=str, default="config/default.yaml")
-    parser.add_argument("--run_id", type=str,
-                                    default=uuid.uuid4().hex.upper()[0:4])
+    default_run_id = "test_{}".format(uuid.uuid4().hex.upper()[0:4])
+    parser.add_argument("--run_id", type=str, default=default_run_id)
     args = parser.parse_args()
 
     tb_writer = SummaryWriter(log_dir="{}/{}.log"
