@@ -23,6 +23,8 @@ from utils.loader import invalid_collate
 from pdb import set_trace
 
 class Engine:
+    OPTIMIZERS = ["adam", "sgd"]
+
     def __init__(self, config, tb_writer, logger, **kwargs):
         device = kwargs.get("device", None)
         model_path = kwargs.get("model_path", None)
@@ -39,16 +41,25 @@ class Engine:
         config = self._config
         model = self._model
 
-        print_iter = config["train"]["print_iter"]
+        print_iter = config["pretrain"]["print_iter"]
         model = model.to(device=device)
         model.train()
 
         optim_params = {
-            "lr": config["train"]["optim"]["learn_rate"],
-            "weight_decay": config["train"]["optim"]["weight_decay"]
+            "lr": config["pretrain"]["optim"]["learn_rate"],
+            "weight_decay": config["pretrain"]["optim"]["weight_decay"],
+            "momentum": config["pretrain"]["optim"]["momentum"]
         }
-        # optimizer = optim.Adam(model.parameters(), **optim_params)
-        optimizer = optim.SGD(model.parameters(), momentum=0.9, **optim_params)
+        optim_name = config["pretrain"]["optim"]["name"]
+
+        if optim_name == "adam":
+            del optim_params["momentum"]
+            optimizer = optim.Adam(model.parameters(), **optim_params)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(model.parameters(), **optim_params)
+        else:
+            raise Exception("Unrecognized optimizer {}, valid values are {}"
+                    .format(optim_name, self.OPTIMIZERS))
 
         losses = []
 
@@ -130,8 +141,16 @@ class Engine:
             "weight_decay": config["train"]["optim"]["weight_decay"],
             "momentum": config["train"]["optim"]["momentum"]
         }
-        # optimizer = optim.Adam(model.parameters(), **optim_params)
-        optimizer = optim.SGD(model.parameters(), **optim_params)
+        optim_name = config["train"]["optim"]["name"]
+
+        if optim_name == "adam":
+            del optim_params["momentum"]
+            optimizer = optim.Adam(model.parameters(), **optim_params)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(model.parameters(), **optim_params)
+        else:
+            raise Exception("Unrecognized optimizer {}, valid values are {}"
+                    .format(optim_name, self.OPTIMIZERS))
 
         losses = []
         tally = {
@@ -348,7 +367,9 @@ class Engine:
             print("Using deep AE MRI model")
             self._model = DeepAutoencMRI(num_channels=n_channels,
                                 num_blocks=config["model"]["num_blocks"],
-                                sparsity=config["pretrain"]["sparsity"])
+                                sparsity=config["pretrain"]["sparsity"],
+                                cnn_dropout=config["train"]["cnn_dropout"],
+                                class_dropout=config["train"]["class_dropout"])
         elif model_class == "2d":
             print("Using 2D deep learning model.")
             n_channels = len(config["image_col"])
