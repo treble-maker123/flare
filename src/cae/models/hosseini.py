@@ -43,13 +43,16 @@ class Hosseini(nn.Module):
         self.encode = nn.Sequential(*self.encoder_layers)
         self.classify = nn.Sequential(*classification_layers)
 
-    def forward(self, x):
-        hidden = self.encode(x).view(len(x), -1)
-        return self.classify(hidden)
-
-    def reconstruct(self, x):
+    def forward(self, x, reconstruct=False):
         hidden = self.encode(x)
 
+        if reconstruct:
+            return self.reconstruct(hidden)
+        else:
+            flattened = hidden.view(len(x), -1)
+            return self.classify(flattened)
+
+    def reconstruct(self, hidden):
         # Conv layers from the encoder
         conv1 = self.encoder_layers[0].block[0]
         conv2 = self.encoder_layers[1].block[0]
@@ -78,7 +81,7 @@ class Hosseini(nn.Module):
         deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
                                      stride=2, output_padding=1)
 
-        return torch.sigmoid(deconv4)
+        return torch.sigmoid(deconv4), hidden
 
     def loss(self, x, y):
         return F.cross_entropy(x, y)
@@ -91,6 +94,9 @@ class Hosseini(nn.Module):
             loss += torch.sum(torch.abs(hidden))
 
         return loss
+
+    def freeze(self):
+        pass
 
 class HosseiniThreeLayer(nn.Module):
     '''
@@ -174,7 +180,7 @@ class HosseiniThreeLayer(nn.Module):
         return torch.sigmoid(deconv4)
 
     def loss(self, x, y):
-        return F.cross_entropy(x, y)
+        return F.cross_entropy(x, y), None
 
     def reconstruction_loss(self, x, y, hidden=None):
         loss = F.mse_loss(x, y)

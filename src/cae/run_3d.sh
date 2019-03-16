@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#SBATCH --job-name=densenet
+#SBATCH --job-name=forecast-cae
 #SBATCH -e outputs/errors/%j.txt        # File to which STDERR will be written
 #SBATCH --output=outputs/logs/%j.txt    # Output file
 #SBATCH --partition=m40-long
@@ -9,6 +9,7 @@
 #SBATCH --mem=90000
 #SBATCH --gres=gpu:2
 
-python3 routine.py
+
+python3 main.py --run_id=$SLURM_JOB_ID --config="config/3d_classify.yaml"
 sleep 1
 exit

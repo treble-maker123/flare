@@ -16,7 +16,6 @@ print(device)
 
 #JOIE: routine to train and test resnet on CIFAR images. model is then saved.
 
-
 #normalize = transforms.Normalize(mean=[0.485,0.456,.406],std=[0.229,0.224,0.225])
 
 transform = transforms.Compose(
@@ -33,8 +32,7 @@ trainset, valset = torch.utils.data.random_split(cifartrain, [40000,10000])
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, 
                                             shuffle=True, num_workers=2)
 
-valloader = torch.utils.data.DataLoader(valset, batch_size=128, 
-                                            shuffle=True, num_workers=2)
+valloader = torch.utils.data.DataLoader(valset, batch_size=128, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(root='../data', train=False,
                                         download=True, transform=transform)
@@ -90,7 +88,7 @@ for epoch in range(30):
         # count correct predictions in training set
         total_train += labels.size(0)
         _, predicted = torch.max(outputs.data,1)
-        train_correct += (predicted == labels).sum().item ()
+        train_correct += (predicted == labels).sum().item()
     
     # calculate training_accuracy
     train_acc = 100*train_correct/total_train

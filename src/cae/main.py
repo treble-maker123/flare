@@ -54,6 +54,8 @@ def main(config_path, run_id, tb_writer):
 
             pretrain_result = engine.pretrain(epoch=epoch)
             pretrain_history.append(pretrain_result)
+            tb_writer.add_scalar("misc/loss/Pre-training",
+                        pretrain_result["average_loss"], epoch)
 
             logger.log("\tAverage training loss: {}"
                 .format(pretrain_result["average_loss"]), epoch=epoch)
@@ -172,34 +174,40 @@ def main(config_path, run_id, tb_writer):
                 .format(epoch + 1, round(elapsed_time)), epoch=epoch)
 
     # TESTING
-    logger.log("Starting test...", epoch=epoch+1)
-    logger.log("Top 5 lowest losses: {}".format(lowest_losses), epoch=epoch+1)
-    lowest_loss_idx = lowest_losses.index(min(lowest_losses))
-    file_name = "outputs/weights/{}/{}.pt" \
-                    .format(run_id, lowest_loss_idx)
-    logger.log("Loading model with lowest loss for testing.", epoch=epoch+1)
-    engine.load_model()
-    test_result, tally = engine.test()
-    tb_writer.add_scalars("testing/stats", {
-            "AD Correct": tally["AD"][0],
-            "AD Total": tally["AD"][1],
-            "CN Correct": tally["CN"][0],
-            "CN Total": tally["CN"][1],
-            "MCI Correct": tally["MCI"][0],
-            "MCI Total": tally["MCI"][1],
-            "Correct": tally["Total"][0],
-            "Total": tally["Total"][1]
-        }, 0)
-    num_correct = test_result["num_correct"]
-    num_total = test_result["num_total"]
-    test_percent = round(((num_correct * 1.0) / num_total) * 100, 2)
-    tb_writer.add_scalar("testing/Pct Correct", test_percent, 0)
-    logger.log("Final test results: {}/{} ({}%)".format(num_correct, num_total,
-                                                   test_percent), epoch=epoch+1)
-    logger.log("\tTest correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
-                .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
-                        tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
-                        tally["Total"][0], tally["Total"][1], test_percent), epoch=epoch+1)
+    test_percent = None
+
+    if config["data"]["test_split"] > 0.0:
+        logger.log("Starting test...", epoch=epoch+1)
+        logger.log("Top 5 lowest losses: {}"
+                    .format(lowest_losses), epoch=epoch+1)
+        lowest_loss_idx = lowest_losses.index(min(lowest_losses))
+        file_name = "outputs/weights/{}/{}.pt" \
+                        .format(run_id, lowest_loss_idx)
+        logger.log("Loading model with lowest loss for testing.", epoch=epoch+1)
+        engine.load_model()
+        test_result, tally = engine.test()
+        tb_writer.add_scalars("testing/stats", {
+                "AD Correct": tally["AD"][0],
+                "AD Total": tally["AD"][1],
+                "CN Correct": tally["CN"][0],
+                "CN Total": tally["CN"][1],
+                "MCI Correct": tally["MCI"][0],
+                "MCI Total": tally["MCI"][1],
+                "Correct": tally["Total"][0],
+                "Total": tally["Total"][1]
+            }, 0)
+        num_correct = test_result["num_correct"]
+        num_total = test_result["num_total"]
+        test_percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+        tb_writer.add_scalar("testing/Pct Correct", test_percent, 0)
+        logger.log("Final test results: {}/{} ({}%)"
+                    .format(num_correct,num_total,test_percent), epoch=epoch+1)
+        logger.log("\tTest correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
+                    .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
+                            tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
+                            tally["Total"][0], tally["Total"][1], test_percent), epoch=epoch+1)
+    else:
+        print("Skipping test.")
 
     logger.log("Writing statistics to file", epoch=epoch+1)
     statistics = {
@@ -212,7 +220,6 @@ def main(config_path, run_id, tb_writer):
     with open("outputs/stats/{}.pickle".format(run_id), "wb") as file:
         pickle.dump(statistics, file)
 
-    tb_writer.close()
     logger.log("Experiment finished in {} seconds."
             .format(round(time() - main_start)), epoch=epoch+1)
     logger.log("----- END ({}) -----".format(run_id), epoch=epoch+1)
@@ -230,11 +237,14 @@ if __name__ == "__main__":
     tb_logs_path = "{}/tensorboard_logs".format(home_dir)
 
     parser.add_argument("--config", type=str, default="config/default.yaml")
-    parser.add_argument("--run_id", type=str,
-                                    default=uuid.uuid4().hex.upper()[0:4])
+    default_run_id = "test_{}".format(uuid.uuid4().hex.upper()[0:4])
+    parser.add_argument("--run_id", type=str, default=default_run_id)
     args = parser.parse_args()
 
     tb_writer = SummaryWriter(log_dir="{}/{}.log"
                                         .format(tb_logs_path, args.run_id))
 
     main(args.config, args.run_id, tb_writer)
+
+    # last thing to be done
+    tb_writer.close()

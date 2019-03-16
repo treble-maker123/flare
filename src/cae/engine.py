@@ -23,6 +23,8 @@ from utils.loader import invalid_collate
 from pdb import set_trace
 
 class Engine:
+    OPTIMIZERS = ["adam", "sgd"]
+
     def __init__(self, config, tb_writer, logger, **kwargs):
         device = kwargs.get("device", None)
         model_path = kwargs.get("model_path", None)
@@ -39,16 +41,25 @@ class Engine:
         config = self._config
         model = self._model
 
-        print_iter = config["train"]["print_iter"]
+        print_iter = config["pretrain"]["print_iter"]
         model = model.to(device=device)
         model.train()
 
         optim_params = {
-            "lr": config["train"]["optim"]["learn_rate"],
-            "weight_decay": config["train"]["optim"]["weight_decay"]
+            "lr": config["pretrain"]["optim"]["learn_rate"],
+            "weight_decay": config["pretrain"]["optim"]["weight_decay"],
+            "momentum": config["pretrain"]["optim"]["momentum"]
         }
-        # optimizer = optim.Adam(model.parameters(), **optim_params)
-        optimizer = optim.SGD(model.parameters(), momentum=0.9, **optim_params)
+        optim_name = config["pretrain"]["optim"]["name"]
+
+        if optim_name == "adam":
+            del optim_params["momentum"]
+            optimizer = optim.Adam(model.parameters(), **optim_params)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(model.parameters(), **optim_params)
+        else:
+            raise Exception("Unrecognized optimizer {}, valid values are {}"
+                    .format(optim_name, self.OPTIMIZERS))
 
         losses = []
 
@@ -57,12 +68,12 @@ class Engine:
 
             x = x.to(device=device).float()
 
+            output, hidden_rep = model(x, reconstruct=True)
+
             if type(model) == torch.nn.DataParallel:
-                output = model.module.reconstruct(x)
-                loss = model.module.reconstruction_loss(output, x)
+                loss = model.module.reconstruction_loss(output, x, hidden_rep)
             else:
-                output = model.reconstruct(x)
-                loss = model.reconstruction_loss(output, x)
+                loss = model.reconstruction_loss(output, x, hidden_rep)
 
             loss.backward()
             optimizer.step()
@@ -93,7 +104,8 @@ class Engine:
 
             losses.append(loss.item())
             if num_iter % print_iter == 0:
-                print("\tIteration {}: {}".format(num_iter, loss.item()))
+                print("\tIteration {} ({}): {}"
+                            .format(num_iter, y.detach(), loss.item()))
 
         return {
             "loss_history": losses,
@@ -117,13 +129,28 @@ class Engine:
         model = model.to(device=device)
         model.train()
 
+        if config["train"]["freeze_cnn"]:
+            self.logger.log("Training with CNN weights frozen.")
+            if type(model) == torch.nn.DataParallel:
+                model.module.freeze()
+            else:
+                model.freeze()
+
         optim_params = {
             "lr": config["train"]["optim"]["learn_rate"],
             "weight_decay": config["train"]["optim"]["weight_decay"],
-            # "momentum": config["train"]["optim"]["momentum"]
+            "momentum": config["train"]["optim"]["momentum"]
         }
-        optimizer = optim.Adam(model.parameters(), **optim_params)
-        # optimizer = optim.SGD(model.parameters(), **optim_params)
+        optim_name = config["train"]["optim"]["name"]
+
+        if optim_name == "adam":
+            del optim_params["momentum"]
+            optimizer = optim.Adam(model.parameters(), **optim_params)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(model.parameters(), **optim_params)
+        else:
+            raise Exception("Unrecognized optimizer {}, valid values are {}"
+                    .format(optim_name, self.OPTIMIZERS))
 
         losses = []
         tally = {
@@ -135,6 +162,9 @@ class Engine:
         }
 
         for num_iter, (x, y) in enumerate(self.train_loader):
+            if len(x) < self._gpu_count * 2: # skip for BatchNorm1d
+                continue
+
             optimizer.zero_grad()
 
             x = x.to(device=device).float()
@@ -187,6 +217,7 @@ class Engine:
 
         with torch.no_grad():
             for num_iter, (x, y) in enumerate(self.valid_loader):
+
                 x = x.to(device=device).float()
                 y = y.to(device=device).long()
 
@@ -273,8 +304,7 @@ class Engine:
         }, tally
 
     def save_model(self, path, **kwargs):
-        device = kwargs.get("device", self._device)
-        model = self._model.to(device=device)
+        model = self._model.cpu()
 
         if type(model) == torch.nn.DataParallel:
             torch.save(model.module.state_dict(), path)
@@ -335,7 +365,11 @@ class Engine:
             self._model = DeepMRI(num_channels=n_channels)
         elif model_class == "deep_ae_mri":
             print("Using deep AE MRI model")
-            self._model = DeepAutoencMRI(num_channels=n_channels)
+            self._model = DeepAutoencMRI(num_channels=n_channels,
+                                num_blocks=config["model"]["num_blocks"],
+                                sparsity=config["pretrain"]["sparsity"],
+                                cnn_dropout=config["train"]["cnn_dropout"],
+                                class_dropout=config["train"]["class_dropout"])
         elif model_class == "2d":
             print("Using 2D deep learning model.")
             n_channels = len(config["image_col"])

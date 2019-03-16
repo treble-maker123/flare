@@ -131,6 +131,11 @@ class NormalizedDataset(Dataset):
                                         mode)
             cn = self._split_dataframe(cn[size:], valid_split, test_split, mode)
 
+            if self.limit != -1:
+                ad = ad[:self.limit]
+                mci = mci[:self.limit]
+                cn = cn[:self.limit]
+
             print("Class distribution for {} {}: {} AD, {} MCI, {} CN"
                     .format(task, mode, len(ad.index), len(mci.index),
                             len(cn.index)))

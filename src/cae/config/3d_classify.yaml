@@ -18,33 +18,46 @@ label_col: label
 
 data:
     set_name: normalized
-    max_workers: 0
+    max_workers: 6
     valid_split: 0.2
     test_split: 0.1
-    limit: 20
+    limit: -1
 
 model:
     class: deep_ae_mri
+    # number of residual blocks per group
+    num_blocks: [1, 1, 1, 1, 1]
 
 pretrain:
-    num_epochs: 0
-    batch_size: 6
+    optim:
+        name: adam
+        learn_rate: 0.0001
+        weight_decay: 0.00001
+        momentum: 0.9
+    num_epochs: 40
+    batch_size: 4
+    print_iter: 4
+    sparsity: 0.0003
 
 train:
-    num_epochs: 1
     optim:
-        learn_rate: 0.01
-        weight_decay: 0.0001
+        name: adam
+        learn_rate: 0.0001
+        weight_decay: 0.00001
         momentum: 0.9
-    batch_size: 8
-    print_iter: 5
+    num_epochs: 60
+    batch_size: 16
+    print_iter: 1
     save_model: True
+    freeze_cnn: True
+    cnn_dropout: 0.0
+    class_dropout: 0.2
 
 valid:
-    batch_size: 8
+    batch_size: 20
 
 test:
-    batch_size: 8
+    batch_size: 20
 
 
-remarks: Autoencoder architecture
+remarks: 21-layers without gloabl average pooling and uses SGD
