@@ -71,7 +71,7 @@ class ADNIDataset2D(Dataset):
             img, label = self._get_item_presliced_helper()
         elif self.data_ver=="liveslice":
             img, label = self._get_item_live_slice_helper()
-            return img, label
+        return img, label
 
     def _get_item_presliced_helper(self):
         list_of_subjectdir = self.list_of_subjectdir
@@ -106,6 +106,7 @@ class ADNIDataset2D(Dataset):
         idx = random.randint(0, len(df.index))
         data_path = df.ix[idx, "misc"]
         img = self._slice_2D_from_3D(data_path)
+        label = 2 if (label=="AD") else (1 if (label=="MCI") else 0)
         return img, label
 
     def _slice_2D_from_3D(self, data_path):
@@ -118,6 +119,8 @@ class ADNIDataset2D(Dataset):
         middle_idx = mri.shape[1] // 2
         mri_slice = mri[:, :, middle_idx-25+33]
         mri_slice = mri_slice.transpose(-2,-1)
+        mri_slice = mri_slice.unsqueeze(0)
+        mri_slice = mri_slice.repeat(3, 1, 1)
         return mri_slice
 
 train_dataset = ADNIDataset2D(mode="train", data_ver="liveslice")
@@ -129,9 +132,8 @@ for epoch in range(num_epochs):
     running_loss = 0.0
     total_train = 0
     train_correct = 0
-    for num_iter, data in enumerate(train_loader):
-	x, y = data
-        x, y = x.to(device), y.to(device)
+    for num_iter, (x,y) in enumerate(train_loader):
+        x, y = x.to(device, dtype=torch.float), y.to(device)
         optimizer.zero_grad()
         pred = model(x)
         loss = criterion(pred, y)
@@ -144,6 +146,7 @@ for epoch in range(num_epochs):
         train_correct += (pred == y).sum().item()
         
         #print epoch, num_iter, loss
+        
     print("Train Accuracy", epoch, train_correct, total_train)
 
 total_val = 0
