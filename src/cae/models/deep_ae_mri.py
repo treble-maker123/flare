@@ -16,6 +16,10 @@ class DeepAutoencMRI(nn.Module):
         - Classification with frozen weights
             |_ (SGD) 10 images per GPU with num_blocks [1,1,1,1,1]
             |_ (ADAM) 8 images per GPU with num_blocks [1,1,1,1,1]
+
+    Notes:
+        - pre-training: 15-20 epochs leads to convergence,
+        - training: 210 epochs?
     '''
     def __init__(self, **kwargs):
         super().__init__()
