@@ -16,6 +16,7 @@ import random
 import numpy as np
 import nibabel as nib
 import torch.nn as nn
+from utils.transforms import NaNToNum
 import torch.optim as optim
 import torchvision.transforms as T
 import torchvision.models as models
@@ -26,7 +27,7 @@ torch.backends.cudnn.benchmark=True
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 lrate = 0.001
-num_epochs = 6
+num_epochs = 1
 model = models.resnet18(pretrained=True)
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs,3)
@@ -45,6 +46,8 @@ class ADNIDataset2D(Dataset):
         self.data_ver = data_ver
         trans = [T.ToTensor()]
         self.transform = T.Compose(trans)
+        trans2 = [NaNToNum()]
+        self.transform2 = T.Compose(trans2)
         if data_ver == "presliced":
             self.subsample_path = "/mnt/nfs/work1/mfiterau/ADNI_data/slice_subsample_no_seg/coronal_skullstrip"
             self.list_of_subjectdir = os.listdir(self.subsample_path)
@@ -103,7 +106,7 @@ class ADNIDataset2D(Dataset):
         elif self.mode == "val":
             df = df[int(-df_size*1/6):]
         df = df.reset_index(drop = True)
-        idx = random.randint(0, len(df.index))
+        idx = random.randint(0, len(df.index)-1)
         data_path = df.ix[idx, "misc"]
         img = self._slice_2D_from_3D(data_path)
         label = 2 if (label=="AD") else (1 if (label=="MCI") else 0)
@@ -119,13 +122,13 @@ class ADNIDataset2D(Dataset):
         middle_idx = mri.shape[1] // 2
         mri_slice = mri[:, :, middle_idx-25+33]
         mri_slice = mri_slice.transpose(-2,-1)
-        mri_slice = mri_slice.unsqueeze(0)
+        mri_slice = self.transform2(mri_slice).unsqueeze(0)
         mri_slice = mri_slice.repeat(3, 1, 1)
         return mri_slice
 
 train_dataset = ADNIDataset2D(mode="train", data_ver="liveslice")
 train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-val_dataset = ADNIDataset2D(mode="val")
+val_dataset = ADNIDataset2D(mode="val", data_ver="liveslice")
 val_loader = DataLoader(val_dataset, batch_size=8, shuffle=True)
 
 for epoch in range(num_epochs):
@@ -145,16 +148,16 @@ for epoch in range(num_epochs):
         _, pred = torch.max(pred.data,1)
         train_correct += (pred == y).sum().item()
         
-        #print epoch, num_iter, loss
+        print(epoch, num_iter, loss)
         
-    print("Train Accuracy", epoch, train_correct, total_train)
+    print("Train Accuracy", epoch, train_correct, total_train, str(float(train_correct)/total_train)+"%")
 
 total_val = 0
 val_correct = 0
 for num_iter, (x, y) in enumerate(val_loader):
-    x, y = x.to(device), y.to(device)
+    x, y = x.to(device, dtype=torch.float), y.to(device)
     pred = model(x)
     total_val += y.size(0)
     _, pred = torch.max(pred.data,1)
     val_correct += (pred == y).sum().item()
-print("Val Accuracy", epoch, val_correct, total_val)
+print("Val Accuracy", epoch, val_correct, total_val, total_val, str(float(val_correct)/total_val)+"%")
