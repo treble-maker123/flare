@@ -16,18 +16,23 @@ import random
 import numpy as np
 import nibabel as nib
 import torch.nn as nn
-from utils.transforms import NaNToNum
+from utils.transforms import NaNToNum, RangeNormalization
 import torch.optim as optim
 import torchvision.transforms as T
 import torchvision.models as models
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import matplotlib 
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 torch.backends.cudnn.benchmark=True
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+train_split, val_split, test_split = 0.6, 0.2, 0.2
+
 lrate = 0.001
-num_epochs = 1
+num_epochs = 10
 model = models.resnet18(pretrained=True)
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs,3)
@@ -46,15 +51,17 @@ class ADNIDataset2D(Dataset):
         self.data_ver = data_ver
         trans = [T.ToTensor()]
         self.transform = T.Compose(trans)
-        trans2 = [NaNToNum()]
+        trans2 = [NaNToNum(), RangeNormalization()]
         self.transform2 = T.Compose(trans2)
         if data_ver == "presliced":
             self.subsample_path = "/mnt/nfs/work1/mfiterau/ADNI_data/slice_subsample_no_seg/coronal_skullstrip"
             self.list_of_subjectdir = os.listdir(self.subsample_path)
             if self.mode == "train":
-                self.list_of_subjectdir = self.list_of_subjectdir[:240]
+                self.list_of_subjectdir = self.list_of_subjectdir[:200]
             elif self.mode == "val":
-                self.list_of_subjectdir = self.list_of_subjectdir[-60:]
+                self.list_of_subjectdir = self.list_of_subjectdir[200:250]
+            elif self.mode == "test":
+                self.list_of_subjectdir = self.list_of_subjectdir[-50:]
         elif data_ver == "liveslice":
             with open('outputs/normalized_mapping.pickle', 'rb') as f:
                 self.data = pickle.load(f)
@@ -65,9 +72,11 @@ class ADNIDataset2D(Dataset):
             return len(self.list_of_subjectdir)
         elif self.data_ver=="liveslice":
             if self.mode == "train":
-                return int((self.data).size * 4/5)
+                return int((self.data).shape[0] * train_split)
             elif self.mode == "val":
-                return int((self.data).size * 1/5)
+                return int((self.data).shape[0] * val_split)
+            elif self.mode == "test":
+                return int((self.data).shape[0] * test_split)
     
     def __getitem__(self, idx):
         if self.data_ver=="presliced":
@@ -80,31 +89,32 @@ class ADNIDataset2D(Dataset):
         list_of_subjectdir = self.list_of_subjectdir
         subject_path = random.choice(list_of_subjectdir)
         img = cv2.imread(self.subsample_path+"/"+subject_path+"/normalized_seg_33.tiff")
-        if img is not None:
-            img = img[:,:,[2,1,0]]
-            # Just crop out the white paths, its consistently the same place..
-            img = img[50:-40, 25:-35, :]
-            img = cv2.resize(img, (256, 256))
-            img = self.transform(img)
-            label = subject_path.strip(".tiff").split("_")[-1]
-            label = 2 if (label=="AD") else (1 if (label=="MCI") else 0)
-            return img, label
+        while img is None:
+            subject_path = random.choice(list_of_subjectdir)
+            img = cv2.imread(self.subsample_path+"/"+subject_path+"/normalized_seg_33.tiff")
+        img = img[:,:,[2,1,0]]
+        # Just crop out the white paths, its consistently the same place..
+        img = img[50:-40, 25:-35, :]
+        img = cv2.resize(img, (256, 256))
+        img = self.transform(img)
+        label = subject_path.strip(".tiff").split("_")[-1]
+        label = 2 if (label=="AD") else (1 if (label=="MCI") else 0)
+        return img, label
     
     def _get_item_live_slice_helper(self):
         labels = ["CN", "MCI", "AD"]
-        weights = [0.33, 0.33, 0.33] #0.3333 / (self.data).size, 0.3333 / (self.data).size, 0.3333 / (self.data).size]
+        weights = [0.33, 0.33, 0.33] 
         label = random.choices(labels, weights)[0]
         df = self.data[self.data["label"] == label]
         if label == "MCI":
-            #if random.randint(0,1) == 0:
-            #    df = self.data[self.data["label"] == "EMCI"]
-            #else:
             df = self.data[self.data["label"] == "LMCI"]
-        df_size = df.size
+        df_size = df.shape[0]
         if self.mode == "train":
-            df = df[:int(df_size*5/6)]
+            df = df[:int(df_size*train_split)]
         elif self.mode == "val":
-            df = df[int(-df_size*1/6):]
+            df = df[int(df_size*train_split):int(df_size*(train_split+val_split))]
+        elif self.mode == "test":
+            df = df[int(-df_size*test_split):]
         df = df.reset_index(drop = True)
         idx = random.randint(0, len(df.index)-1)
         data_path = df.ix[idx, "misc"]
@@ -120,21 +130,31 @@ class ADNIDataset2D(Dataset):
         mri = mri.flip(1)
         mri = mri.flip(2)
         middle_idx = mri.shape[1] // 2
-        mri_slice = mri[:, :, middle_idx-25+33]
+        slice_id = random.randint(29, 39)
+        mri_slice = mri[:, :, middle_idx-25+slice_id]
         mri_slice = mri_slice.transpose(-2,-1)
         mri_slice = self.transform2(mri_slice).unsqueeze(0)
         mri_slice = mri_slice.repeat(3, 1, 1)
         return mri_slice
 
 train_dataset = ADNIDataset2D(mode="train", data_ver="liveslice")
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=False)
 val_dataset = ADNIDataset2D(mode="val", data_ver="liveslice")
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
+test_dataset = ADNIDataset2D(mode="test", data_ver="liveslice")
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+train_loss_vals = []
+val_loss_vals = []
+train_acc_vals = []
+val_acc_vals = []
+epochs = []
 
 for epoch in range(num_epochs):
     running_loss = 0.0
     total_train = 0
     train_correct = 0
+
     for num_iter, (x,y) in enumerate(train_loader):
         x, y = x.to(device, dtype=torch.float), y.to(device)
         optimizer.zero_grad()
@@ -143,21 +163,72 @@ for epoch in range(num_epochs):
         loss.backward()
         optimizer.step()
 
-        # count correct predictions in training set
+        running_loss += loss.item()
         total_train += y.size(0)
+
         _, pred = torch.max(pred.data,1)
         train_correct += (pred == y).sum().item()
-        
-        print(epoch, num_iter, loss)
-        
-    print("Train Accuracy", epoch, train_correct, total_train, str(float(train_correct)/total_train)+"%")
 
-total_val = 0
-val_correct = 0
-for num_iter, (x, y) in enumerate(val_loader):
+    train_acc = float(train_correct)/total_train
+    print("Train Accuracy", epoch, train_correct, total_train, str(train_acc)+"%")
+
+    running_loss_val = 0.0
+    total_val = 0
+    val_correct = 0
+    for num_iter, (x, y) in enumerate(val_loader):
+        x, y = x.to(device, dtype=torch.float), y.to(device)
+        pred = model(x)
+        loss = criterion(pred, y)
+
+        running_loss_val += loss.item()
+        total_val += y.size(0)
+
+        _, pred = torch.max(pred.data,1)
+        val_correct += (pred == y).sum().item()
+        
+    val_acc = float(val_correct)/total_val
+    print("Val Accuracy", epoch, val_correct, total_val, str(val_acc)+"%")
+
+    #torch.save({
+    #    'epoch': epoch,
+    #    'model_state_dict': model.state_dict(),
+    #    'optimizer_state_dict': optimizer.state_dict(),
+    #    'loss': loss
+    #}, './checkpoints/resnet_lr_0.001_cifar_epoch_{}34.test'.format(epoch))
+
+    train_loss_vals.append(running_loss / total_train)
+    val_loss_vals.append(running_loss_val / total_val)
+    val_acc_vals.append(val_acc) 
+    train_acc_vals.append(train_acc)
+    epochs.append(epoch)
+
+
+f = plt.figure(figsize=(10,10))
+
+# loss graph
+f.add_subplot(2,1,1)
+plt.plot(epochs,train_loss_vals,label='train loss')
+plt.plot(epochs,val_loss_vals,label='val loss')
+plt.title('Loss and Accuracy over Epochs')
+plt.legend()
+plt.ylabel('loss')
+
+# accuracy graph
+f.add_subplot(2,1,2)
+plt.plot(epochs,train_acc_vals,label='train acc')
+plt.plot(epochs,val_acc_vals,label='val_acc')
+plt.ylabel('acc')
+plt.legend()
+
+plt.savefig('./figures/resnet_CIFAR_train_val' + str(slice_id) + '.png')
+
+
+total_test = 0
+test_correct = 0
+for num_iter, (x, y) in enumerate(test_loader):
     x, y = x.to(device, dtype=torch.float), y.to(device)
     pred = model(x)
-    total_val += y.size(0)
+    total_test += y.size(0)
     _, pred = torch.max(pred.data,1)
-    val_correct += (pred == y).sum().item()
-print("Val Accuracy", epoch, val_correct, total_val, total_val, str(float(val_correct)/total_val)+"%")
+    test_correct += (pred == y).sum().item()
+print("Test Accuracy", epoch, test_correct, total_test, str(float(test_correct)/total_test)+"%")
