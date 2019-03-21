@@ -15,18 +15,19 @@ class OrientFSImage(object):
 
 class PadPreprocImage(object):
     '''
-    Pads the image on both sides so it becomes a cube of size 256x256x256.
+    Pads the image on both sides so it becomes a cube of size target_size*target_size*target_size.
     '''
-    def __init__(self):
-        pass
+    def __init__(self, target_size=256, num_dim=3):
+        self.target_size = target_size
+        self.num_dim == num_dim
 
     def __call__(self, image):
         dim = tuple(image.shape)
-        pad_amount = [0, 0, 0, 0, 0, 0]
+        pad_amount = [ 0 ] * (self.num_dim * 2)
 
         for idx in range(len(dim)):
-            if dim[idx] < 256:
-                padding = (256 - dim[idx]) // 2
+            if dim[idx] < self.target_size:
+                padding = (self.target_size - dim[idx]) // 2
                 pad_amount[idx*2] = padding
                 pad_amount[idx*2+1] = padding
 
@@ -60,23 +61,29 @@ class MeanStdNormalization(object):
 class NaNToNum(object):
     '''Replace nan in Tensor with a constant.
     '''
-    def __init__(self, constant=0):
+    def __init__(self, constant=None):
         self.constant = constant
 
     def __call__(self, image):
-        image[image != image] = 0
+        if self.constant is not None:
+            image[image != image] = self.constant
+        else:
+            image[image != image] = float("inf")
+            image[image == float("inf")] = image.min()
+            # otherwise image.min() gives NaN
+
         return image
 
-class PadToSameDim3D(object):
+class PadToSameDim(object):
     '''Pad the image so the dimensions match.
     '''
-    def __init__(self):
-        pass
+    def __init__(self, num_dim=3):
+        self.num_dim = num_dim
 
     def __call__(self, image):
         shape = image.shape
         max_dim = max(shape)
-        padding = [0,0,0,0,0,0]
+        padding = [ 0 ] * (self.num_dim * 2)
 
         for idx, dim in enumerate(shape):
             if shape[idx] != max_dim:

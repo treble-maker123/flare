@@ -8,14 +8,19 @@ class DeepAutoencMRI(nn.Module):
     '''Super deep autoencoder network with pretraining routine.
 
     MUST RUN ON M40 GPU!
-        - Classification-only (classification batch size):
-            |_ 4 images per GPU with num_blocks [1,1,1,1,1]
-            |_ 3 images per GPU with num_blocks [2,2,2,2,2]
-        - Reconstruction-only (pre-training batch size):
-            |_ 2 images per GPU with num_blocks [1,1,1,1,1]
-        - Classification with frozen weights
-            |_ (SGD) 10 images per GPU with num_blocks [1,1,1,1,1]
-            |_ (ADAM) 8 images per GPU with num_blocks [1,1,1,1,1]
+        - One channel (Starting with 64 channels)
+            - Classification-only (classification batch size):
+                |_ 2 images per GPU with num_blocks [1,1,1,1,1]
+        - Three channels
+            - Classification-only (classification batch size):
+                |_ 4 images per GPU with num_blocks [1,1,1,1,1]
+                |_ 3 images per GPU with num_blocks [2,2,2,2,2]
+            - Reconstruction-only (pre-training batch size):
+                |_ 2 images per GPU with num_blocks [1,1,1,1,1]
+            - Classification with frozen weights
+                |_ (SGD) 10 images per GPU with num_blocks [1,1,1,1,1]
+                |_ (ADAM) 8 images per GPU with num_blocks [1,1,1,1,1]
+
 
     Notes:
         - pre-training: 15-20 epochs leads to convergence,
@@ -32,49 +37,49 @@ class DeepAutoencMRI(nn.Module):
         self.sparsity = kwargs.get("sparsity", 0.0)
 
         # input 145, output 143
-        self.conv1 = nn.Conv3d(num_channels, 32, kernel_size=3, stride=1,
+        self.conv1 = nn.Conv3d(num_channels, 64, kernel_size=3, stride=1,
                                 padding=0)
 
         # input 143, output 143
-        self.block1 = ResidualStack(32, num_blocks=num_blocks[0],
+        self.block1 = ResidualStack(64, num_blocks=num_blocks[0],
                                     bottleneck=True, dropout=cnn_dropout)
         # input 143, output 71
-        self.conv2 = nn.Conv3d(32, 64, kernel_size=3, stride=2, padding=0)
+        self.conv2 = nn.Conv3d(64, 128, kernel_size=3, stride=2, padding=0)
 
         # input 71, output 71
-        self.block2 = ResidualStack(64, num_blocks=num_blocks[1],
+        self.block2 = ResidualStack(128, num_blocks=num_blocks[1],
                                     bottleneck=True, dropout=cnn_dropout)
         # input 71, output 35
-        self.conv3 = nn.Conv3d(64, 128, kernel_size=3, stride=2, padding=0)
+        self.conv3 = nn.Conv3d(128, 256, kernel_size=3, stride=2, padding=0)
 
         # input 35, output 35
-        self.block3 = ResidualStack(128, num_blocks=num_blocks[2],
+        self.block3 = ResidualStack(256, num_blocks=num_blocks[2],
                                     bottleneck=True, dropout=cnn_dropout)
         # input 35, output 17
-        self.conv4 = nn.Conv3d(128, 256, kernel_size=3, stride=2, padding=0)
+        self.conv4 = nn.Conv3d(256, 512, kernel_size=3, stride=2, padding=0)
 
         # input 17, output 17
-        self.block4 = ResidualStack(256, num_blocks=num_blocks[3],
+        self.block4 = ResidualStack(512, num_blocks=num_blocks[3],
                                     bottleneck=True, dropout=cnn_dropout)
         # input 17, output 8
-        self.conv5 = nn.Conv3d(256, 512, kernel_size=3, stride=2, padding=0)
+        self.conv5 = nn.Conv3d(512, 1024, kernel_size=3, stride=2, padding=0)
 
         # input 8, output 8
-        self.block5 = ResidualStack(512, num_blocks=num_blocks[4],
+        self.block5 = ResidualStack(1024, num_blocks=num_blocks[4],
                                     bottleneck=True, dropout=cnn_dropout)
 
         # input 8, output 4
-        self.conv6 = nn.Conv3d(512, 512, kernel_size=3, stride=2, padding=1)
-        self.bn6 = nn.BatchNorm3d(512)
+        self.conv6 = nn.Conv3d(1024, 1024, kernel_size=3, stride=2, padding=1)
+        self.bn6 = nn.BatchNorm3d(1024)
 
         # input 4, output 1
-        self.conv7 = nn.Conv3d(512, 512, kernel_size=3, stride=1, padding=0)
-        self.bn7 = nn.BatchNorm3d(512)
+        self.conv7 = nn.Conv3d(1024, 1024, kernel_size=3, stride=1, padding=0)
+        self.bn7 = nn.BatchNorm3d(1024)
 
         self.classification_dropout = nn.Dropout(class_dropout)
 
         classification_layers = [
-            nn.Linear(2*2*2*512, 128),
+            nn.Linear(2*2*2*1024, 128),
             nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.Linear(128, 32),

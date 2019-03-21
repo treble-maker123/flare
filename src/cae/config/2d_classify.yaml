@@ -3,14 +3,6 @@ verbose: False
 
 # path to the label file, relative to the src/cae/ path.
 
-# label_path: outputs/files_manifest.pickle
-# image_col: postproc_path
-# label_col: label
-
-# label_path: outputs/surfer_labels.pckl
-# image_col: PROC_IMGPATH
-# label_col: DX
-
 label_path: outputs/normalized_mapping.pickle
 mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
 # image_col: [ gray_matter_path ]
@@ -21,19 +13,22 @@ label_col: label
 data:
     set_name: normalized
     # 2D vs 3D
-    num_dim: 3
-    max_workers: 0
+    num_dim: 2
+    slice_view: coronal
+    slice_num: 33
+    max_workers: 4
     valid_split: 0.1
     test_split: 0.1
     limit: -1
-    transforms: [
-        pad_to_same: True,
-        nan_to_num: 0,
-        range_norm: True
-    ]
+    transforms:
+        resize: 256
+        range_norm: False
+        mean_std_norm: True
 
 model:
-    class: deep_ae_mri
+    class: resnet18
+    # for pretrained models only
+    pretrained: True
     # number of residual blocks per group
     num_blocks: [1, 1, 1, 1, 1]
 
@@ -50,23 +45,24 @@ pretrain:
 
 train:
     optim:
-        name: sgd
+        name: adam
         learn_rate: 0.001
         weight_decay: 0.0
         momentum: 0.9
-    num_epochs: 60
-    batch_size: 4
+    num_epochs: 1
+    batch_size: 16
     print_iter: 1
     save_model: True
+    # freeze the weights of the CNN layers
     freeze_cnn: False
     cnn_dropout: 0.0
     class_dropout: 0.0
 
 valid:
-    batch_size: 4
+    batch_size: 16
 
 test:
-    batch_size: 4
+    batch_size: 16
 
 
-remarks: Classification of skull-stripped images
+remarks: 2D classification
