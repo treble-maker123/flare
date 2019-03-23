@@ -21,7 +21,7 @@ class PretrainModel(nn.Module):
             for param in self.net.parameters():
                 param.requires_grad = False
 
-        self.net.fc = nn.Linear(2048, 3)
+        self.net.fc = nn.Linear(512, 3)
 
     def forward(self, x):
         return self.net(x)

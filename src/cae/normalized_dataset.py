@@ -83,7 +83,10 @@ class NormalizedDataset(Dataset):
             print("Fetched image (label: {}/{}) from {}."
                     .format(label, encoded_label, image_paths))
 
-        return self.transforms(image), encoded_label
+        if image is None:
+            return None, None
+        else:
+            return self.transforms(image), encoded_label
 
     # ==============================
     # Helper Methods
@@ -100,6 +103,9 @@ class NormalizedDataset(Dataset):
     def _load_imgs(self, paths, **kwargs):
         images = []
 
+        if self.num_dim == 2:
+            assert len(paths) == 1
+
         for idx in range(len(paths)):
             try:
                 image = nib.load(paths[idx]) \
@@ -109,26 +115,31 @@ class NormalizedDataset(Dataset):
                 if self.brain_mask is not None:
                     image *= self.brain_mask
 
-                if self.num_dim == 2:
-                    idx = self.slice_idx
-                    if self.slice_view == "coronal":
-                        image = image[idx, :, :]
-                    elif self.slice_view == "axial":
-                        image = image[:, :, idx]
-                    elif self.slice_view == "saggital":
-                        image = image[:, idx, :]
-                    else:
-                        raise Exception("Unrecognized slice view: {}" \
-                                            .format(self.slice_view))
-
             except Exception as e:
                 print("Failed to load #{}: {}"
                         .format(idx, paths[idx]))
                 print("Errors encountered: {}".format(e))
-                return None, None
+                return None
 
             if self.num_dim == 2:
-                images.append(image[None, :, :])
+                slice_idx = self.slice_idx
+
+                if isinstance(slice_idx, list):
+                    slices = []
+                    for idx in slice_idx:
+                        view = self.slice_view
+                        img_slice = self._get_slice(image, view, idx)
+                        slices.append(np.copy(img_slice[None, :, :]))
+
+                    if len(slices) == 3:
+                        image = np.concatenate(slices, axis=0)
+                    elif len(slices) == 1:
+                        image = np.repeat(slices, 3, axis=0)
+                    else:
+                        raise Exception("Invalid number of slices, expect 1 or 3, got {} instead".format(len(slices)))
+                else:
+                    raise Exception("slice_num parameter takes an array, got {} instead".format(self.slice_idx))
+                images.append(image)
             elif self.num_dim == 3:
                 images.append(image[None, :, :, :])
             else:
@@ -139,7 +150,7 @@ class NormalizedDataset(Dataset):
         if self.num_dim == 2:
             # PIL only takes valid images (0,1) or (0, 255)
             stacked_image = NaNToNum()(stacked_image)
-            stacked_image = RangeNormalization()(stacked_image) * 255
+            stacked_image = np.uint8(RangeNormalization()(stacked_image) * 255)
             # transpose to (W,H,C) for PIL
             stacked_image = stacked_image.transpose((1,2,0))
             # transform into PIL image for easy preprocessing
@@ -147,6 +158,19 @@ class NormalizedDataset(Dataset):
 
         # returns a PIL.Image when 2D, Numpy.Array when 3D
         return stacked_image
+
+    def _get_slice(self, mri, view, idx):
+        if view == "coronal":
+            image = mri[:, idx, :]
+        elif view == "axial":
+            image = mri[:, :, idx]
+        elif view == "saggital":
+            image = mri[idx, :, :]
+        else:
+            raise Exception("Unrecognized slice view: {}" \
+                                .format(view))
+
+        return image
 
     def _split_data(self, df, valid_split, test_split, mode, task):
         if mode not in self.VALID_MODES:

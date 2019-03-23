@@ -70,7 +70,6 @@ class NaNToNum(object):
         else:
             image[image != image] = float("inf")
             image[image == float("inf")] = image.min()
-            # otherwise image.min() gives NaN
 
         return image
 

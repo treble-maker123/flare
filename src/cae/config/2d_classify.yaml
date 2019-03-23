@@ -15,15 +15,16 @@ data:
     # 2D vs 3D
     num_dim: 2
     slice_view: coronal
-    slice_num: 33
+    # can specify one or three slices
+    slice_num: [ 70, 80, 90 ]
     max_workers: 4
     valid_split: 0.1
     test_split: 0.1
     limit: -1
     transforms:
-        resize: 256
-        range_norm: False
-        mean_std_norm: True
+        resize: 224
+        range_norm: True
+        mean_std_norm: False
 
 model:
     class: resnet18
@@ -49,7 +50,7 @@ train:
         learn_rate: 0.001
         weight_decay: 0.0
         momentum: 0.9
-    num_epochs: 1
+    num_epochs: 20
     batch_size: 16
     print_iter: 1
     save_model: True
