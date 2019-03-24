@@ -9,6 +9,8 @@ import torchvision.transforms as T
 
 from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from normalized_dataset import NormalizedDataset
+from presliced_dataset import PreslicedDataset
+
 from models.vanilla_cae import VanillaCAE
 from models.transform_cae import SpatialTransformConvAutoEnc
 from models.classifier import Classify
@@ -510,6 +512,15 @@ class Engine:
             self.train_dataset = ADNIAeCnnDataset(**train_dataset_params)
             self.valid_dataset = ADNIAeCnnDataset(**valid_dataset_params)
             self.test_dataset = ADNIAeCnnDataset(**test_dataset_params)
+        elif config["data"]["set_name"] == "presliced":
+            self.pretrain_dataset = PreslicedDataset(mode="train",
+                                        transforms=transforms)
+            self.train_dataset = PreslicedDataset(mode="train",
+                                        transforms=transforms)
+            self.valid_dataset = PreslicedDataset(mode="valid",
+                                        transforms=transforms)
+            self.test_dataset = PreslicedDataset(mode="test",
+                                        transforms=transforms)
         elif config["data"]["set_name"] == "normalized":
             num_dim = config["data"]["num_dim"]
             slice_view = config["data"]["slice_view"]

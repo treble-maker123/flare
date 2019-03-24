@@ -4,23 +4,25 @@ verbose: False
 # path to the label file, relative to the src/cae/ path.
 
 label_path: outputs/normalized_mapping.pickle
-mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
+# mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
 # image_col: [ gray_matter_path ]
 # image_col: [ gray_matter_path, white_matter_path, csf_path ]
 image_col: [ misc ]
 label_col: label
 
 data:
-    set_name: normalized
+    set_name: presliced
     # 2D vs 3D
     num_dim: 2
     slice_view: coronal
-    # can specify one or three slices
-    slice_num: [ 70, 80, 90 ]
-    max_workers: 4
+    # can specify one or three slice indices
+    # If one slice index is specified and one image_col is specified, the resulting slice is repeated and stacked so there are 3 channels.
+    # Otherwise either three image-cols, or three slice_nums can be specified, leading to a three channel image.
+    slice_num: [ 80 ]
+    max_workers: 0
     valid_split: 0.1
     test_split: 0.1
-    limit: -1
+    limit: 20
     transforms:
         resize: 224
         range_norm: True
@@ -46,9 +48,9 @@ pretrain:
 
 train:
     optim:
-        name: adam
+        name: sgd
         learn_rate: 0.001
-        weight_decay: 0.0
+        weight_decay: 0.001
         momentum: 0.9
     num_epochs: 20
     batch_size: 16

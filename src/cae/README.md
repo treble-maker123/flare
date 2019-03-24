@@ -48,3 +48,13 @@ else:
 model:
     class: custom_class
 ```
+
+### Tensorboard
+
+To start a tensorboard session, run
+
+`tensorboard --logdir=DIR_TO_LOG --port==SERVER_SIDE_PORT`
+
+To tunnel to the server, run
+
+`ssh -L LOCAL_PORT:127.0.0.1:SERVER_SIDE_PORT -N YOUR_ID@SERVER_ADDRESS`

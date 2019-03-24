@@ -1,4 +1,5 @@
 import os
+import yaml
 import pickle
 import pandas as pd
 import numpy as np
@@ -24,7 +25,11 @@ class NormalizedDataset(Dataset):
         # if 2D, which view
         self.slice_view = kwargs.get("slice_view", "coronal")
         # the index at which to slice
-        self.slice_idx = kwargs.get("slice_num", 33)
+        self.slice_idx = kwargs.get("slice_num", [ 33 ])
+        if not isinstance(self.slice_idx, list):
+            raise Exception("Expected a list for slice_num, but instead got {}".format(self.slice_idx))
+        if not (len(self.slice_idx) == 1 or len(self.slice_idx) == 3):
+            raise Exception("Expected either 1 or three slices for slice_num, got {} instead.".format(len(self.slice_idx)))
 
         self.config = kwargs.get("config", {
             "image_col": [ "misc" ],
@@ -103,9 +108,6 @@ class NormalizedDataset(Dataset):
     def _load_imgs(self, paths, **kwargs):
         images = []
 
-        if self.num_dim == 2:
-            assert len(paths) == 1
-
         for idx in range(len(paths)):
             try:
                 image = nib.load(paths[idx]) \
@@ -115,39 +117,34 @@ class NormalizedDataset(Dataset):
                 if self.brain_mask is not None:
                     image *= self.brain_mask
 
+                # extract slices for 2D classification
+                if self.num_dim == 2:
+                    view = self.slice_view
+                    slice_idx = self.slice_idx
+                    slices = [
+                        np.copy(self._get_slice(image, view, idx)[None, :, :])
+                            for idx in slice_idx ]
+                    if len(slices) > 1:
+                        image = np.concatenate(slices, axis=0)
+                    images.append(image)
+                elif self.num_dim == 3:
+                    images.append(np.copy(image[None, :, :, :]))
             except Exception as e:
-                print("Failed to load #{}: {}"
-                        .format(idx, paths[idx]))
+                print("Failed to load #{}: {}".format(idx, paths[idx]))
                 print("Errors encountered: {}".format(e))
                 return None
-
-            if self.num_dim == 2:
-                slice_idx = self.slice_idx
-
-                if isinstance(slice_idx, list):
-                    slices = []
-                    for idx in slice_idx:
-                        view = self.slice_view
-                        img_slice = self._get_slice(image, view, idx)
-                        slices.append(np.copy(img_slice[None, :, :]))
-
-                    if len(slices) == 3:
-                        image = np.concatenate(slices, axis=0)
-                    elif len(slices) == 1:
-                        image = np.repeat(slices, 3, axis=0)
-                    else:
-                        raise Exception("Invalid number of slices, expect 1 or 3, got {} instead".format(len(slices)))
-                else:
-                    raise Exception("slice_num parameter takes an array, got {} instead".format(self.slice_idx))
-                images.append(image)
-            elif self.num_dim == 3:
-                images.append(image[None, :, :, :])
-            else:
-                raise Exception("Unrecognized num_dim: {}".format(self.num_dim))
-
-        stacked_image = np.concatenate(images, axis=0)
+        set_trace()
+        if len(images) == 3:
+            stacked_image = np.concatenate(images, axis=0)
+        elif len(images) == 1:
+            stacked_image = images[0]
+        else:
+            raise Exception("Invalid number of images in the images array, expected 1 or 3, got {}.".format(len(images)))
 
         if self.num_dim == 2:
+            # repeat if only 1 channel
+            if stacked_image.shape[0] == 1:
+                stacked_image = np.repeat(stacked_image, 3, axis=0)
             # PIL only takes valid images (0,1) or (0, 255)
             stacked_image = NaNToNum()(stacked_image)
             stacked_image = np.uint8(RangeNormalization()(stacked_image) * 255)
@@ -270,4 +267,23 @@ class NormalizedDataset(Dataset):
         return df, encoder
 
 if __name__ == "__main__":
-    dataset = NormalizedDataset()
+    with open("config/2d_classify.yaml") as file:
+        config = yaml.load(file)
+    dataset = NormalizedDataset(
+        num_dim=2,
+        slice_view="coronal",
+        slice_num=[ 80 ],
+        mode="train",
+        task="classify",
+        valid_split=0.1,
+        test_split=0.1,
+        limit=-1,
+        config=config,
+        transforms=[
+            # T.Resize((224, 224)),
+            # T.ToTensor(),
+            # NaNToNum(),
+            # RangeNormalization()
+        ]
+    )
+    image = dataset[0]
