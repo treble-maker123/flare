@@ -67,7 +67,7 @@ def main(config_path, run_id, tb_writer):
 
         # TRAINING
         logger.log("Starting training epoch {}:".format(epoch + 1), epoch=epoch)
-        train_result, tally = engine.train()
+        train_result, tally = engine.train(epoch=epoch)
         tb_writer.add_scalars("training/Num AD Correct", {
             "AD Correct": tally["AD"][0],
             "AD Total": tally["AD"][1]

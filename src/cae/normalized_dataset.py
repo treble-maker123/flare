@@ -7,8 +7,9 @@ import torchvision.transforms as T
 import torch
 
 from pdb import set_trace
+from PIL import Image
 from torch.utils.data import Dataset
-from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim3D
+from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim
 from sklearn.preprocessing import LabelEncoder
 
 class NormalizedDataset(Dataset):
@@ -18,8 +19,15 @@ class NormalizedDataset(Dataset):
     VALID_TASKS = ["pretrain", "classify"]
 
     def __init__(self, **kwargs):
+        # number of dimensions in the image, 2D vs 3D
+        self.num_dim = kwargs.get("num_dim", 3)
+        # if 2D, which view
+        self.slice_view = kwargs.get("slice_view", "coronal")
+        # the index at which to slice
+        self.slice_idx = kwargs.get("slice_num", 33)
+
         self.config = kwargs.get("config", {
-            "image_col": "misc",
+            "image_col": [ "misc" ],
             "label_col": "label",
             "label_path": "outputs/normalized_mapping.pickle"
         })
@@ -28,10 +36,7 @@ class NormalizedDataset(Dataset):
         self.verbose = kwargs.get("verbose", self.config["verbose"])
 
         transforms = kwargs.get("transforms", [
-            T.ToTensor(),
-            PadToSameDim3D(),
-            NaNToNum(),
-            RangeNormalization()
+            T.ToTensor()
         ])
         self.transforms = T.Compose(transforms)
 
@@ -39,6 +44,15 @@ class NormalizedDataset(Dataset):
         self.image_col = self.config["image_col"]
         # name of the label column in the dataframe
         self.label_col = self.config["label_col"]
+
+        # skull-stripping mask
+        mask_path = self.config.get("mask_path", None)
+        if mask_path is not None:
+            self.brain_mask = nib.load(mask_path) \
+                                .get_fdata() \
+                                .squeeze()
+        else:
+            self.brain_mask = None
 
         mapping_path = kwargs.get("mapping_path",
                                   self.config["label_path"])
@@ -49,7 +63,8 @@ class NormalizedDataset(Dataset):
 
         df, label_encoder = self._get_data(mapping_path)
         input_encoder = kwargs.get("label_encoder", None)
-        self.label_encoder = label_encoder if input_encoder is None else input_encoder
+        self.label_encoder = label_encoder if input_encoder is None \
+                                           else input_encoder
 
         self.dataframe = self._split_data(df, valid_split, test_split, mode,
                                           task)
@@ -58,38 +73,105 @@ class NormalizedDataset(Dataset):
         return len(self.dataframe.index)
 
     def __getitem__(self, idx):
-        image_paths = []
-        for channel in range(len(self.image_col)):
-            image_paths.append(self.dataframe[self.image_col[channel]].iloc[idx])
+        image_paths = self._get_img_paths(idx)
+        image = self._load_imgs(image_paths)
+
         label = self.dataframe[self.label_col].iloc[idx]
         encoded_label = self.label_encoder.transform([label])[0]
-
-        transformed_imgs = []
-        for channel in range(len(image_paths)):
-            try:
-                image = nib.load(image_paths[channel]) \
-                           .get_fdata() \
-                           .squeeze()
-            except Exception as e:
-                print("Failed to load #{}: {}".format(idx, image_paths[channel]))
-                return None, None
-
-            # unsqueeze adds a "channel" dimension
-            transformed_imgs.append(self.transforms(image).unsqueeze(0))
-
-        transformed_image = transformed_imgs[0]
-        for channel in range(len(image_paths)-1):
-            transformed_image = torch.cat([transformed_image, transformed_imgs[channel+1]])
 
         if self.verbose:
             print("Fetched image (label: {}/{}) from {}."
                     .format(label, encoded_label, image_paths))
 
-        return transformed_image, encoded_label
+        if image is None:
+            return None, None
+        else:
+            return self.transforms(image), encoded_label
 
     # ==============================
     # Helper Methods
     # ==============================
+    def _get_img_paths(self, idx):
+        image_paths = []
+
+        for channel in range(len(self.image_col)):
+            image_path = self.dataframe[self.image_col[channel]].iloc[idx]
+            image_paths.append(image_path)
+
+        return image_paths
+
+    def _load_imgs(self, paths, **kwargs):
+        images = []
+
+        if self.num_dim == 2:
+            assert len(paths) == 1
+
+        for idx in range(len(paths)):
+            try:
+                image = nib.load(paths[idx]) \
+                           .get_fdata() \
+                           .squeeze()
+
+                if self.brain_mask is not None:
+                    image *= self.brain_mask
+
+            except Exception as e:
+                print("Failed to load #{}: {}"
+                        .format(idx, paths[idx]))
+                print("Errors encountered: {}".format(e))
+                return None
+
+            if self.num_dim == 2:
+                slice_idx = self.slice_idx
+
+                if isinstance(slice_idx, list):
+                    slices = []
+                    for idx in slice_idx:
+                        view = self.slice_view
+                        img_slice = self._get_slice(image, view, idx)
+                        slices.append(np.copy(img_slice[None, :, :]))
+
+                    if len(slices) == 3:
+                        image = np.concatenate(slices, axis=0)
+                    elif len(slices) == 1:
+                        image = np.repeat(slices, 3, axis=0)
+                    else:
+                        raise Exception("Invalid number of slices, expect 1 or 3, got {} instead".format(len(slices)))
+                else:
+                    raise Exception("slice_num parameter takes an array, got {} instead".format(self.slice_idx))
+                images.append(image)
+            elif self.num_dim == 3:
+                images.append(image[None, :, :, :])
+            else:
+                raise Exception("Unrecognized num_dim: {}".format(self.num_dim))
+
+        stacked_image = np.concatenate(images, axis=0)
+
+        if self.num_dim == 2:
+            # PIL only takes valid images (0,1) or (0, 255)
+            stacked_image = NaNToNum()(stacked_image)
+            stacked_image = np.uint8(RangeNormalization()(stacked_image) * 255)
+            # transpose to (W,H,C) for PIL
+            stacked_image = stacked_image.transpose((1,2,0))
+            # transform into PIL image for easy preprocessing
+            stacked_image = Image.fromarray(stacked_image, "RGB")
+
+        # returns a PIL.Image when 2D, Numpy.Array when 3D
+        return stacked_image
+
+    def _get_slice(self, mri, view, idx):
+        if view == "coronal":
+            image = mri[:, idx, :]
+        elif view == "axial":
+            image = mri[:, :, idx]
+        elif view == "saggital":
+            image = mri[idx, :, :]
+        else:
+            raise Exception("Unrecognized slice view: {}" \
+                                .format(view))
+
+        return image
+
     def _split_data(self, df, valid_split, test_split, mode, task):
         if mode not in self.VALID_MODES:
             raise Exception("Invalid mode: {}. Valid options are {}"

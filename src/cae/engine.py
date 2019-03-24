@@ -5,6 +5,7 @@ import multiprocessing as mp
 from random import randint
 
 from torch.utils.data import DataLoader
+import torchvision.transforms as T
 
 from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
 from normalized_dataset import NormalizedDataset
@@ -16,7 +17,9 @@ from models.ae_cnn import AE_CNN
 from models.two_d import TwoD
 from models.deep_mri import DeepMRI
 from models.deep_ae_mri import DeepAutoencMRI
+from models.pretrained import PretrainModel
 from slice_dataset import SliceDataset
+from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim, MeanStdNormalization
 
 from utils.loader import invalid_collate
 
@@ -80,13 +83,9 @@ class Engine:
 
             output = output.detach()
 
-            outputs = []
-            if output.shape[1] == 3:
-                outputs.append(output[:, 0, :, :, :])
-                outputs.append(output[:, 1, :, :, :])
-                outputs.append(output[:, 2, :, :, :])
-            else:
-                outputs.append(output)
+            outputs = [
+                output[:, idx, :, :, :] for idx in range(output.shape[1])
+            ]
 
             if randint(1, 100) <= 10:
                 # randomly pick one image to write to tensorboard
@@ -94,13 +93,16 @@ class Engine:
                 # pick the middle slice
                 mid_idx = output.shape[-1] // 2
                 for idx, o in enumerate(outputs):
-                    self.writer.add_image("Channel {}; 1st idx".format(idx+1),
-                                        o[img_idx, mid_idx, :, :].unsqueeze(0),
-                                        global_step=epoch, dataformats="CHW")
-                    self.writer.add_image("Channel {}; 2nd idx".format(idx+1),
-                                        o[img_idx, :, mid_idx, :].unsqueeze(0), global_step=epoch, dataformats="CHW")
-                    self.writer.add_image("Channel {}; 3rd idx".format(idx+1),
-                                        o[img_idx, :, :, mid_idx].unsqueeze(0), global_step=epoch, dataformats="CHW")
+                    self.writer.add_image(
+                        "Reconstruction/Channel {}/Coronal View".format(idx+1),
+                        o[img_idx, mid_idx, :, :].unsqueeze(0),
+                        global_step=epoch, dataformats="CHW")
+                    self.writer.add_image(
+                        "Reconstruction/Channel {}/Saggital View".format(idx+1),
+                        o[img_idx, :, mid_idx, :].unsqueeze(0), global_step=epoch, dataformats="CHW")
+                    self.writer.add_image(
+                        "Reconstruction/Channel {}/Axial View".format(idx+1),
+                        o[img_idx, :, :, mid_idx].unsqueeze(0), global_step=epoch, dataformats="CHW")
 
             losses.append(loss.item())
             if num_iter % print_iter == 0:
@@ -112,7 +114,7 @@ class Engine:
             "average_loss": sum(losses) / len(losses)
         }
 
-    def train(self):
+    def train(self, epoch=0):
         '''
         Execute the training loop.
 
@@ -166,6 +168,40 @@ class Engine:
                 continue
 
             optimizer.zero_grad()
+
+            if randint(1, 100) <= 5:
+                temp_x = x.detach()
+                # randomly pick one image to write to tensorboard
+                img_idx = randint(0, len(temp_x) - 1)
+
+                if len(temp_x.shape) == 5:
+                    # enumerate all of the channels
+                    inputs = [
+                        temp_x[:, idx, :, :, :] for idx in range(x.shape[1])
+                    ]
+                    # pick the middle slice
+                    mid_idx = temp_x.shape[-1] // 2
+                    for idx, inp in enumerate(inputs):
+                        self.writer.add_image(
+                            "Training Input/Channel {}/Coronal View"
+                                .format(idx+1),
+                            inp[img_idx, mid_idx, :, :].unsqueeze(0),
+                            global_step=epoch, dataformats="CHW")
+                        self.writer.add_image(
+                            "Training Input/Channel {}/Axial View"
+                                .format(idx+1),
+                            inp[img_idx, :, :, mid_idx].unsqueeze(0),
+                            global_step=epoch, dataformats="CHW")
+                        self.writer.add_image(
+                            "Training Input/Channel {}/Saggital View"
+                                .format(idx+1),
+                            inp[img_idx, :, mid_idx, :].unsqueeze(0),
+                            global_step=epoch, dataformats="CHW")
+                elif len(x.shape) == 4:
+                    self.writer.add_image(
+                        "Training Input", temp_x[img_idx, :, :, :],
+                        global_step=epoch, dataformats="CHW"
+                    )
 
             x = x.to(device=device).float()
             y = y.to(device=device).long()
@@ -377,6 +413,11 @@ class Engine:
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn patches model.")
             self._model = AE_CNN()
+        elif model_class in ["resnet18", "vgg16"]:
+            print("Using {} model.".format(model_class))
+            self._model = PretrainModel(model_name=model_class,
+                            freeze_weight=self._config["train"]["freeze_cnn"],
+                            pretrained=self._config["model"]["pretrained"])
         else:
             raise Exception("Unrecognized model: {}".format(model_class))
 
@@ -391,13 +432,16 @@ class Engine:
         num_workers = min(mp.cpu_count() // 2, config["data"]["max_workers"])
         num_workers = max(num_workers, 1)
 
+        transforms = self._get_transforms()
+
         pretrain_dataset_params = {
             "mode": "all",
             "task": "pretrain",
             "valid_split": 0.0,
             "test_split": 0.0,
             "limit": config["data"]["limit"],
-            "config": config
+            "config": config,
+            "transforms": transforms
         }
         train_dataset_params = {
             "mode": "train",
@@ -405,7 +449,8 @@ class Engine:
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
             "limit": config["data"]["limit"],
-            "config": config
+            "config": config,
+            "transforms": transforms
         }
         valid_dataset_params = {
             "mode": "valid",
@@ -413,7 +458,8 @@ class Engine:
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
             "limit": config["data"]["limit"],
-            "config": config
+            "config": config,
+            "transforms": transforms
         }
         test_dataset_params = {
             "mode": "test",
@@ -421,7 +467,8 @@ class Engine:
             "valid_split": config["data"]["valid_split"],
             "test_split": config["data"]["test_split"],
             "limit": config["data"]["limit"],
-            "config": config
+            "config": config,
+            "transforms": transforms
         }
 
         pretrain_loader_params = {
@@ -449,37 +496,52 @@ class Engine:
             "shuffle": True
         }
 
-        if self._config["data"]['set_name'] == "autoenc":
+        if config["data"]['set_name'] == "autoenc":
             self.train_dataset = ADNIAutoEncDataset(**train_dataset_params)
             self.valid_dataset = ADNIAutoEncDataset(**valid_dataset_params)
             self.test_dataset = ADNIAutoEncDataset(**test_dataset_params)
-        elif self._config["data"]["set_name"] == "classify":
+        elif config["data"]["set_name"] == "classify":
             self.pretrain_dataset = ADNIClassDataset(**pretrain_dataset_params)
             self.train_dataset = ADNIClassDataset(**train_dataset_params)
             self.valid_dataset = ADNIClassDataset(**valid_dataset_params)
             self.test_dataset = ADNIClassDataset(**test_dataset_params)
-        elif self._config["data"]["set_name"] == "ae_cnn_patches":
+        elif config["data"]["set_name"] == "ae_cnn_patches":
             self.pretrain_dataset = ADNIAeCnnDataset(**pretrain_dataset_params)
             self.train_dataset = ADNIAeCnnDataset(**train_dataset_params)
             self.valid_dataset = ADNIAeCnnDataset(**valid_dataset_params)
             self.test_dataset = ADNIAeCnnDataset(**test_dataset_params)
-        elif self._config["data"]["set_name"] == "normalized":
-            self.pretrain_dataset = NormalizedDataset(**pretrain_dataset_params)
-            self.train_dataset = NormalizedDataset(**train_dataset_params)
+        elif config["data"]["set_name"] == "normalized":
+            num_dim = config["data"]["num_dim"]
+            slice_view = config["data"]["slice_view"]
+            slice_num = config["data"]["slice_num"]
+            self.pretrain_dataset = NormalizedDataset(num_dim=num_dim,
+                                        slice_view=slice_view,
+                                        slice_num=slice_num,
+                                        **pretrain_dataset_params)
+            self.train_dataset = NormalizedDataset(num_dim=num_dim,
+                                        slice_view=slice_view,
+                                        slice_num=slice_num,
+                                        **train_dataset_params)
             # Ensure the label and its encoded counter part match.
             label_encoder = self.train_dataset.label_encoder
-            self.valid_dataset = NormalizedDataset(label_encoer= label_encoder,
-                                                    **valid_dataset_params)
-            self.test_dataset = NormalizedDataset(label_encoer= label_encoder,
-                                                    **test_dataset_params)
-        elif self._config["data"]["set_name"] == "2d":
+            self.valid_dataset = NormalizedDataset(num_dim=num_dim,
+                                        slice_view=slice_view,
+                                        slice_num=slice_num,
+                                        label_encoder=label_encoder,
+                                        **valid_dataset_params)
+            self.test_dataset = NormalizedDataset(num_dim=2,
+                                        slice_view=slice_view,
+                                        slice_num=slice_num,
+                                        label_encoder=label_encoder,
+                                        **test_dataset_params)
+        elif config["data"]["set_name"] == "2d":
             self.pretrain_dataset = SliceDataset(**pretrain_dataset_params)
             self.train_dataset = SliceDataset(**train_dataset_params)
             # Ensure the label and its encoded counter part match.
             label_encoder = self.train_dataset.label_encoder
-            self.valid_dataset = SliceDataset(label_encoer= label_encoder,
+            self.valid_dataset = SliceDataset(label_encoder=label_encoder,
                                                     **valid_dataset_params)
-            self.test_dataset = SliceDataset(label_encoer= label_encoder,
+            self.test_dataset = SliceDataset(label_encoder=label_encoder,
                                                     **test_dataset_params)
 
         self.pretrain_loader = DataLoader(self.pretrain_dataset,
@@ -510,3 +572,38 @@ class Engine:
         tally["Total"][1] += len(labels)
 
         return tally
+
+    def _get_transforms(self):
+        '''Compile image transform functions.
+        '''
+        config = self._config
+
+        transforms = []
+
+        # transforms below operate on PIL Image
+        if "resize" in config["data"]["transforms"]:
+             # 2D ONLY!
+            if config["data"]["num_dim"] == 3:
+                raise Exception("Attempting to call resize on 3D image.")
+            size = config["data"]["transforms"]["resize"]
+            transforms.append(T.Resize((size, size)))
+
+        transforms.append(T.ToTensor())
+
+        # transforms below operate on Pytorch Tensors
+        if "pad_to_same" in config["data"]["transforms"] and \
+            config["data"]["transforms"]["pad_to_same"]:
+            transforms.append(PadToSameDim(config["data"]["num_dim"]))
+
+        if "nan_to_num" in config["data"]["transforms"]:
+            target = config["data"]["transforms"]["nan_to_num"]
+            transforms.append(NaNToNum(target))
+
+        if "range_norm" in config["data"]["transforms"] and \
+            config["data"]["transforms"]["range_norm"]:
+            transforms.append(RangeNormalization())
+        elif "mean_std_norm" in config["data"]["transforms"] and \
+            config["data"]["transforms"]["mean_std_norm"]:
+            transforms.append(MeanStdNormalization())
+
+        return transforms

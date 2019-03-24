@@ -8,7 +8,7 @@ import torch
 
 from pdb import set_trace
 from torch.utils.data import Dataset
-from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim3D
+from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim
 from sklearn.preprocessing import LabelEncoder
 
 class SliceDataset(Dataset):
@@ -29,7 +29,7 @@ class SliceDataset(Dataset):
 
         transforms = kwargs.get("transforms", [
             #T.ToTensor(),
-            #PadToSameDim3D(),
+            #PadToSameDim(),
             NaNToNum(),
             RangeNormalization()
         ])
