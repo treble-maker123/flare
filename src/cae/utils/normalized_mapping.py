@@ -144,7 +144,7 @@ class FileMapping:
             if len(match.index) != 1:
                 raise Exception("Not exactly one match. Sumthin' not right.")
 
-            row["label"] = match["DX_bl"].values[0]
+            row["label"] = match["DX"].values[0]
 
     def _save_df(self, df, file_path):
         with open(file_path, "wb") as file:
