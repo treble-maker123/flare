@@ -12,6 +12,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim
 from sklearn.preprocessing import LabelEncoder
+from matplotlib import pyplot as plt
 
 class NormalizedDataset(Dataset):
     '''CLINICA-normalized dataset for classification task.
@@ -91,7 +92,8 @@ class NormalizedDataset(Dataset):
         if image is None:
             return None, None
         else:
-            return self.transforms(image), encoded_label
+            # NOTE: [:3] added to slice out the alpha channel
+            return self.transforms(image)[:3], encoded_label
 
     # ==============================
     # Helper Methods
@@ -126,6 +128,8 @@ class NormalizedDataset(Dataset):
                             for idx in slice_idx ]
                     if len(slices) > 1:
                         image = np.concatenate(slices, axis=0)
+                    else:
+                        image = slices[0]
                     images.append(image)
                 elif self.num_dim == 3:
                     images.append(np.copy(image[None, :, :, :]))
@@ -133,7 +137,7 @@ class NormalizedDataset(Dataset):
                 print("Failed to load #{}: {}".format(idx, paths[idx]))
                 print("Errors encountered: {}".format(e))
                 return None
-        set_trace()
+
         if len(images) == 3:
             stacked_image = np.concatenate(images, axis=0)
         elif len(images) == 1:
@@ -147,7 +151,20 @@ class NormalizedDataset(Dataset):
                 stacked_image = np.repeat(stacked_image, 3, axis=0)
             # PIL only takes valid images (0,1) or (0, 255)
             stacked_image = NaNToNum()(stacked_image)
+            # Get pixel values to between 0 and 255 for PIL
             stacked_image = np.uint8(RangeNormalization()(stacked_image) * 255)
+
+            # apply color map
+            # stacked_image = plt.get_cmap("viridis")(stacked_image.squeeze()) \
+            #                     [:,:,:3]
+            # Get pixel values to between 0 and 255 for PIL
+            # stacked_image = np.uint8(RangeNormalization() \
+            #                       (stacked_image) * 255)
+            # Rotate to upright
+            # stacked_image = np.rot90(stacked_image)
+            # transform into PIL image for easy preprocessing
+            # stacked_image = Image.fromarray(stacked_image.squeeze())
+
             # transpose to (W,H,C) for PIL
             stacked_image = stacked_image.transpose((1,2,0))
             # transform into PIL image for easy preprocessing
@@ -280,10 +297,10 @@ if __name__ == "__main__":
         limit=-1,
         config=config,
         transforms=[
-            # T.Resize((224, 224)),
-            # T.ToTensor(),
-            # NaNToNum(),
-            # RangeNormalization()
+            T.Resize((224, 224)),
+            T.ToTensor(),
+            NaNToNum(),
+            RangeNormalization()
         ]
     )
     image = dataset[0]

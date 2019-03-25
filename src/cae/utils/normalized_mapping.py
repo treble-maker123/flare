@@ -134,6 +134,7 @@ class FileMapping:
             patient_id = "_S_".join(row["patient_id"].split("S"))
             visit_code = row["visit_code"].lower()
 
+            # "bl" in image path, m00 in ADNIMERGE
             visit_code = "bl" if visit_code == "m00" else visit_code
 
             ptid_match = feats["PTID"] == patient_id
