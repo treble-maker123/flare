@@ -591,6 +591,10 @@ class Engine:
 
         transforms = []
 
+        if config["data"]["num_dim"] == 2 and \
+            not config["data"]["set_name"] == "presliced":
+            transforms.append(T.ToPILImage("RGB"))
+
         # transforms below operate on PIL Image
         if "resize" in config["data"]["transforms"]:
              # 2D ONLY!

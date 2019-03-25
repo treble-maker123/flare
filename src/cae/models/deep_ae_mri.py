@@ -121,7 +121,7 @@ class DeepAutoencMRI(nn.Module):
 
             conv7, conv6 = self.conv7, self.conv6
 
-            # -> l6
+            # -> l6q
             deconv2 = F.conv_transpose3d(hidden,
                         conv7.weight.flip(*weight_flip), stride=1)
             deconv2 = F.relu(self.back_bn1(deconv2))

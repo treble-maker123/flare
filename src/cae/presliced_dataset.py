@@ -22,7 +22,12 @@ class PreslicedDataset(Dataset):
 
         self.transforms = T.Compose(transforms)
         # self.data_path = kwargs.get("data_path", "/mnt/nfs/work1/mfiterau/ADNI_data/slice_subsample_no_seg/coronal_skullstrip")
-        self.data_path = kwargs.get("data_path", "/mnt/nfs/work1/mfiterau/ADNI_data/slice_all_no_seg/coronal_skullstrip")
+        # self.data_path = kwargs.get("data_path", "/mnt/nfs/work1/mfiterau/ADNI_data/slice_all_no_seg/coronal_skullstrip")
+
+        # self.data_path = kwargs.get("data_path", "/mnt/nfs/work1/mfiterau/ADNI_data/slice_all_spm_no_seg_NEW/coronal_skullstrip")
+        self.data_path = kwargs.get("data_path", "/mnt/nfs/work1/mfiterau/ADNI_data/slice_all_spm_no_seg_NEW/sagital_skullstrip")
+
+
 
         subject_paths = os.listdir(self.data_path)
         cn = list(filter(lambda x: "CN" in x, subject_paths))
@@ -85,7 +90,12 @@ class PreslicedDataset(Dataset):
             raise Exception("Invalid class index computed: {}"
                     .format(class_idx))
 
-        full_path = "{}/{}/normalized_seg_33.tiff" \
+        # coronal
+        # full_path = "{}/{}/normalized_seg_33.tiff" \
+        #                 .format(self.data_path, subject_path)
+
+        # sagital
+        full_path = "{}/{}/normalized_seg_25.tiff" \
                         .format(self.data_path, subject_path)
 
         try:

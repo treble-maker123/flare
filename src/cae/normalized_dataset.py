@@ -41,6 +41,8 @@ class NormalizedDataset(Dataset):
         self.limit = kwargs.get("limit", -1)
         self.verbose = kwargs.get("verbose", self.config["verbose"])
 
+        self.apply_cmap = self.config["data"]["apply_cmap"]
+
         transforms = kwargs.get("transforms", [
             T.ToTensor()
         ])
@@ -92,8 +94,11 @@ class NormalizedDataset(Dataset):
         if image is None:
             return None, None
         else:
-            # NOTE: [:3] added to slice out the alpha channel
-            return self.transforms(image)[:3], encoded_label
+            if self.num_dim == 2:
+                return self.transforms(image), encoded_label
+            elif self.num_dim == 3:
+                # transforms for 3D happens in load_data
+                return image, encoded_label
 
     # ==============================
     # Helper Methods
@@ -132,45 +137,41 @@ class NormalizedDataset(Dataset):
                         image = slices[0]
                     images.append(image)
                 elif self.num_dim == 3:
-                    images.append(np.copy(image[None, :, :, :]))
+                    # NOTE: Transforms on 3D images must be performed here. 2D image transforms are performed in __getitem__
+                    images.append(self.transforms(image))
             except Exception as e:
                 print("Failed to load #{}: {}".format(idx, paths[idx]))
                 print("Errors encountered: {}".format(e))
                 return None
 
         if len(images) == 3:
-            stacked_image = np.concatenate(images, axis=0)
+            stacked_image = torch.stack(images)
         elif len(images) == 1:
             stacked_image = images[0]
         else:
             raise Exception("Invalid number of images in the images array, expected 1 or 3, got {}.".format(len(images)))
 
         if self.num_dim == 2:
-            # repeat if only 1 channel
-            if stacked_image.shape[0] == 1:
-                stacked_image = np.repeat(stacked_image, 3, axis=0)
             # PIL only takes valid images (0,1) or (0, 255)
             stacked_image = NaNToNum()(stacked_image)
-            # Get pixel values to between 0 and 255 for PIL
+            # Get pixel values to between 0 and 255
             stacked_image = np.uint8(RangeNormalization()(stacked_image) * 255)
 
             # apply color map
-            # stacked_image = plt.get_cmap("viridis")(stacked_image.squeeze()) \
-            #                     [:,:,:3]
-            # Get pixel values to between 0 and 255 for PIL
-            # stacked_image = np.uint8(RangeNormalization() \
-            #                       (stacked_image) * 255)
-            # Rotate to upright
-            # stacked_image = np.rot90(stacked_image)
-            # transform into PIL image for easy preprocessing
-            # stacked_image = Image.fromarray(stacked_image.squeeze())
+            if self.apply_cmap:
+                stacked_image = plt \
+                    .get_cmap("viridis")(stacked_image.squeeze())[:,:,:3]
 
-            # transpose to (W,H,C) for PIL
-            stacked_image = stacked_image.transpose((1,2,0))
-            # transform into PIL image for easy preprocessing
-            stacked_image = Image.fromarray(stacked_image, "RGB")
+                stacked_image = np.uint8(RangeNormalization() \
+                                    (stacked_image) * 255)
 
-        # returns a PIL.Image when 2D, Numpy.Array when 3D
+                # Rotate to upright
+                stacked_image = np.rot90(stacked_image)
+            elif stacked_image.shape[0] == 1:
+                stacked_image = np.repeat(stacked_image, 3, axis=0)
+                # transpose to (W,H,C) for PIL
+                stacked_image = stacked_image.transpose((1,2,0))
+
         return stacked_image
 
     def _get_slice(self, mri, view, idx):
@@ -178,7 +179,7 @@ class NormalizedDataset(Dataset):
             image = mri[:, idx, :]
         elif view == "axial":
             image = mri[:, :, idx]
-        elif view == "saggital":
+        elif view == "sagital":
             image = mri[idx, :, :]
         else:
             raise Exception("Unrecognized slice view: {}" \
@@ -281,6 +282,8 @@ class NormalizedDataset(Dataset):
         encoder = LabelEncoder()
         encoder.fit(labels)
 
+        df = df.sample(frac=1)
+
         return df, encoder
 
 if __name__ == "__main__":
@@ -297,6 +300,7 @@ if __name__ == "__main__":
         limit=-1,
         config=config,
         transforms=[
+            T.ToPILImage(),
             T.Resize((224, 224)),
             T.ToTensor(),
             NaNToNum(),
@@ -304,3 +308,24 @@ if __name__ == "__main__":
         ]
     )
     image = dataset[0]
+
+    # with open("config/3d_classify.yaml") as file:
+    #     config = yaml.load(file)
+    # dataset = NormalizedDataset(
+    #     num_dim=3,
+    #     slice_view="coronal",
+    #     slice_num=[ 80 ],
+    #     mode="train",
+    #     task="classify",
+    #     valid_split=0.1,
+    #     test_split=0.1,
+    #     limit=-1,
+    #     config=config,
+    #     transforms=[
+    #         T.ToTensor(),
+    #         PadToSameDim(),
+    #         NaNToNum(),
+    #         RangeNormalization()
+    #     ]
+    # )
+    # image = dataset[0]

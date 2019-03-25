@@ -12,17 +12,20 @@ label_col: label
 
 data:
     set_name: normalized
+    # set_name: presliced
     # 2D vs 3D
     num_dim: 2
     slice_view: coronal
     # can specify one or three slice indices
     # If one slice index is specified and one image_col is specified, the resulting slice is repeated and stacked so there are 3 channels.
     # Otherwise either three image-cols, or three slice_nums can be specified, leading to a three channel image.
-    slice_num: [ 78, 88, 98 ]
+    slice_num: [ 88 ]
+    # only one slice is allowed if applying color map
+    apply_cmap: True
     max_workers: 4
-    valid_split: 0.1
-    test_split: 0.1
-    limit: 20
+    valid_split: 0.2
+    test_split: 0.2
+    limit: -1
     transforms:
         resize: 224
         range_norm: True
@@ -50,9 +53,9 @@ train:
     optim:
         name: adam
         learn_rate: 0.001
-        weight_decay: 0.001
+        weight_decay: 0.0001
         momentum: 0.9
-    num_epochs: 10
+    num_epochs: 40
     batch_size: 16
     print_iter: 1
     save_model: True
