@@ -184,7 +184,7 @@ def main(config_path, run_id, tb_writer):
         file_name = "outputs/weights/{}/{}.pt" \
                         .format(run_id, lowest_loss_idx)
         logger.log("Loading model with lowest loss for testing.", epoch=epoch+1)
-        engine.load_model()
+        engine.load_model(model_path=file_name)
         test_result, tally = engine.test()
         tb_writer.add_scalars("testing/stats", {
                 "AD Correct": tally["AD"][0],
