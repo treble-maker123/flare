@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from  torch.nn.modules.upsampling import Upsample
 import pandas as pd
+from sklearn.utils import shuffle
 
 torch.backends.cudnn.benchmark=True
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -57,14 +58,14 @@ class ADNIDataset2D(Dataset):
         trans2 = [NaNToNum(), RangeNormalization()]
         self.transform2 = T.Compose(trans2)
         if data_ver == "presliced":
-            self.subsample_path = "/mnt/nfs/work1/mfiterau/ADNI_data/slice_subsample_no_seg/coronal_skullstrip"
+            self.subsample_path = "/mnt/nfs/work1/mfiterau/ADNI_data/slice_all_no_seg/coronal_skullstrip"
             self.list_of_subjectdir = os.listdir(self.subsample_path)
             if self.mode == "train":
-                self.list_of_subjectdir = self.list_of_subjectdir[:200]
+                self.list_of_subjectdir = self.list_of_subjectdir[:int(train_split*1033)]
             elif self.mode == "val":
-                self.list_of_subjectdir = self.list_of_subjectdir[200:250]
+                self.list_of_subjectdir = self.list_of_subjectdir[int(train_split*1033):int((train_split+val_split)*1033)]
             elif self.mode == "test":
-                self.list_of_subjectdir = self.list_of_subjectdir[-50:]
+                self.list_of_subjectdir = self.list_of_subjectdir[-int(test_split*1033):]
         elif data_ver == "liveslice":
             with open('outputs/normalized_mapping.pickle', 'rb') as f:
                 data = pickle.load(f)
@@ -72,18 +73,21 @@ class ADNIDataset2D(Dataset):
             data_AD = data[data["label"] == "AD"]
             data_MCI = data[data["label"] == "LMCI"]
             data_CN = data[data["label"] == "CN"]
+            #data_AD = shuffle(data_AD)
+            #data_MCI = shuffle(data_MCI)
+            #data_CN = shuffle(data_CN)
             if self.mode == "train":
-                data_AD = data_AD[:int(344*train_split)]
-                data_MCI = data_MCI[:int(344*train_split)] 
-                data_CN = data_CN[:int(344*train_split)]
+                data_AD = data_AD[:int(586*train_split)]
+                data_MCI = data_MCI[:int(586*train_split)] 
+                data_CN = data_CN[:int(586*train_split)]
             elif self.mode == "val":
-                data_AD = data_AD[int(344*train_split):int(344*(train_split+val_split))]
-                data_MCI = data_MCI[int(344*train_split):int(344*(train_split+val_split))]
-                data_CN = data_CN[int(344*(train_split)):int(344*(train_split+val_split))]
+                data_AD = data_AD[int(586*train_split):int(586*(train_split+val_split))]
+                data_MCI = data_MCI[int(586*train_split):int(586*(train_split+val_split))]
+                data_CN = data_CN[int(586*(train_split)):int(586*(train_split+val_split))]
             elif self.mode == "test":
-                data_AD = data_AD[int(344*(train_split+val_split)):int(344*(train_split+val_split+test_split))]
-                data_MCI = data_MCI[int(344*(train_split+val_split)):int(344*(train_split+val_split+test_split))]
-                data_CN = data_CN[int(344*(train_split+val_split)):int(344*(train_split+val_split+test_split))]
+                data_AD = data_AD[int(586*(train_split+val_split)):int(586*(train_split+val_split+test_split))]
+                data_MCI = data_MCI[int(586*(train_split+val_split)):int(586*(train_split+val_split+test_split))]
+                data_CN = data_CN[int(586*(train_split+val_split)):int(586*(train_split+val_split+test_split))]
             self.data = pd.concat([data_AD, data_MCI, data_CN],ignore_index=True)
         self.cmap = plt.get_cmap('viridis') 
   
@@ -114,14 +118,9 @@ class ADNIDataset2D(Dataset):
             img = cv2.imread(self.subsample_path+"/"+subject_path+"/normalized_seg_33.tiff")
         img = img[:,:,[2,1,0]]
         # Just crop out the white paths, its consistently the same place..
-        print(img.shape)
         img = img[50:-40, 25:-35, :]
-        print(img.shape)
         img = cv2.resize(img, (256, 256))
-        print(img.shape)
         img = self.transform(img)
-        print(img.shape)
-        print
         label = subject_path.strip(".tiff").split("_")[-1]
         label = 2 if (label=="AD") else (1 if (label=="MCI") else 0)
         return img, label
@@ -153,11 +152,12 @@ class ADNIDataset2D(Dataset):
         #slice1 = slice1[:, :, ::-1]
         return slice1 
 
-train_dataset = ADNIDataset2D(mode="train", data_ver="liveslice")
+data_slice_ver = "liveslice"
+train_dataset = ADNIDataset2D(mode="train", data_ver=data_slice_ver)
 train_loader = DataLoader(train_dataset, batch_size=10, shuffle=False)
-val_dataset = ADNIDataset2D(mode="val", data_ver="liveslice")
+val_dataset = ADNIDataset2D(mode="val", data_ver=data_slice_ver)
 val_loader = DataLoader(val_dataset, batch_size=10, shuffle=False)
-test_dataset = ADNIDataset2D(mode="test", data_ver="liveslice")
+test_dataset = ADNIDataset2D(mode="test", data_ver=data_slice_ver)
 test_loader = DataLoader(test_dataset, batch_size=10, shuffle=False)
 
 train_loss_vals = []
