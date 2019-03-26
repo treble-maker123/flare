@@ -225,9 +225,9 @@ class NormalizedDataset(Dataset):
         mci = df[df[self.label_col] == "MCI"]
         cn = df[df[self.label_col] == "CN"]
 
-        #ad = shuffle(ad)
-        #mci = shuffle(mci)
-        #cn = shuffle(cn)
+        ad = shuffle(ad)
+        mci = shuffle(mci)
+        cn = shuffle(cn)
 
         size = min(len(ad.index), len(mci.index), len(cn.index)) \
                 if self.limit == -1 else self.limit
