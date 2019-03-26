@@ -411,7 +411,7 @@ class Engine:
         elif model_class == "ae_cnn_patches":
             print("Using ae cnn patches model.")
             self._model = AE_CNN()
-        elif model_class in ["resnet18", "vgg16"]:
+        elif model_class in ["resnet18", "vgg16", "alexnet", "inception_v3"]:
             print("Using {} model.".format(model_class))
             self._model = PretrainModel(model_name=model_class,
                             freeze_weight=self._config["train"]["freeze_cnn"],
@@ -606,7 +606,7 @@ class Engine:
         config = self._config
 
         transforms = []
-
+        
         if config["data"]["num_dim"] == 2 and \
             not config["data"]["set_name"] == "presliced":
             transforms.append(T.ToPILImage("RGB"))

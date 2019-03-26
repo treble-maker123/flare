@@ -14,6 +14,8 @@ from torch.utils.data import Dataset
 from utils.transforms import RangeNormalization, NaNToNum, PadToSameDim
 from sklearn.preprocessing import LabelEncoder
 from matplotlib import pyplot as plt
+from sklearn.utils import shuffle
+import random
 
 class NormalizedDataset(Dataset):
     '''CLINICA-normalized dataset for classification task.
@@ -119,6 +121,7 @@ class NormalizedDataset(Dataset):
     def _load_imgs(self, paths, **kwargs):
         images = []
 
+        #slice_num = self.slice_idx[0]  ##
         for idx in range(len(paths)):
             try:
                 image = nib.load(paths[idx]) \
@@ -131,10 +134,11 @@ class NormalizedDataset(Dataset):
                 # extract slices for 2D classification
                 if self.num_dim == 2:
                     view = self.slice_view
-                    slice_idx = self.slice_idx
+                    #slice_idx_randomized = random.randint(slice_num-5,slice_num+6)  ##
+                    #slice_idx = [slice_idx_randomized]  ##
                     slices = [
                         np.copy(self._get_slice(image, view, idx)[None, :, :])
-                            for idx in slice_idx ]
+                            for idx in self.slice_idx ]
                     if len(slices) > 1:
                         image = np.concatenate(slices, axis=0)
                     else:
@@ -220,6 +224,11 @@ class NormalizedDataset(Dataset):
         ad = df[df[self.label_col] == "AD"]
         mci = df[df[self.label_col] == "MCI"]
         cn = df[df[self.label_col] == "CN"]
+
+        #ad = shuffle(ad)
+        #mci = shuffle(mci)
+        #cn = shuffle(cn)
+
         size = min(len(ad.index), len(mci.index), len(cn.index)) \
                 if self.limit == -1 else self.limit
 
