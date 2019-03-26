@@ -17,6 +17,7 @@ class DeepAutoencMRI(nn.Module):
                 |_ 3 images per GPU with num_blocks [2,2,2,2,2]
             - Reconstruction-only (pre-training batch size):
                 |_ 2 images per GPU with num_blocks [1,1,1,1,1]
+                |_ 3 images per GPU with num_blocks [1,1,0,0,0]
             - Classification with frozen weights
                 |_ (SGD) 10 images per GPU with num_blocks [1,1,1,1,1]
                 |_ (ADAM) 8 images per GPU with num_blocks [1,1,1,1,1]

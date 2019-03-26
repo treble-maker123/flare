@@ -150,9 +150,14 @@ class NormalizedDataset(Dataset):
                 return None
 
         if len(images) == 3:
-            stacked_image = torch.stack(images)
+            if self.num_dim == 3:
+                stacked_image = torch.stack(images)
+            elif self.num_dim == 2:
+                stacked_image = np.stack(images)
         elif len(images) == 1:
             stacked_image = images[0]
+            if self.num_dim == 3:
+                stacked_image = stacked_image.unsqueeze(0)
         else:
             raise Exception("Invalid number of images in the images array, expected 1 or 3, got {}.".format(len(images)))
 
@@ -292,32 +297,10 @@ class NormalizedDataset(Dataset):
         return df, encoder
 
 if __name__ == "__main__":
-    # with open("config/2d_classify.yaml") as file:
-    #     config = yaml.load(file)
-    # dataset = NormalizedDataset(
-    #     num_dim=2,
-    #     slice_view="coronal",
-    #     slice_num=[ 80 ],
-    #     mode="train",
-    #     task="classify",
-    #     valid_split=0.1,
-    #     test_split=0.1,
-    #     limit=-1,
-    #     config=config,
-    #     transforms=[
-    #         T.ToPILImage(),
-    #         T.Resize((224, 224)),
-    #         T.ToTensor(),
-    #         NaNToNum(),
-    #         RangeNormalization()
-    #     ]
-    # )
-    # image = dataset[0]
-
-    with open("config/3d_classify.yaml") as file:
+    with open("config/2d_classify.yaml") as file:
         config = yaml.load(file)
     dataset = NormalizedDataset(
-        num_dim=3,
+        num_dim=2,
         slice_view="coronal",
         slice_num=[ 80 ],
         mode="train",
@@ -327,10 +310,32 @@ if __name__ == "__main__":
         limit=-1,
         config=config,
         transforms=[
+            T.ToPILImage(),
+            T.Resize((224, 224)),
             T.ToTensor(),
-            PadToSameDim(),
             NaNToNum(),
             RangeNormalization()
         ]
     )
     image = dataset[0]
+
+    # with open("config/3d_classify.yaml") as file:
+    #     config = yaml.load(file)
+    # dataset = NormalizedDataset(
+    #     num_dim=3,
+    #     slice_view="coronal",
+    #     slice_num=[ 80 ],
+    #     mode="train",
+    #     task="classify",
+    #     valid_split=0.1,
+    #     test_split=0.1,
+    #     limit=-1,
+    #     config=config,
+    #     transforms=[
+    #         T.ToTensor(),
+    #         PadToSameDim(),
+    #         NaNToNum(),
+    #         RangeNormalization()
+    #     ]
+    # )
+    # image = dataset[0]

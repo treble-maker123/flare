@@ -477,6 +477,7 @@ class Engine:
             "batch_size": config["pretrain"]["batch_size"],
             "num_workers": num_workers,
             "collate_fn": invalid_collate,
+            "drop_last": True,
             "shuffle": True
         }
         train_loader_params = {
