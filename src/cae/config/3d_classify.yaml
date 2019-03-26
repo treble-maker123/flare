@@ -13,8 +13,8 @@ verbose: False
 
 label_path: outputs/normalized_mapping.pickle
 # mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
-# image_col: [ gray_matter_path ]
-image_col: [ gray_matter_path, white_matter_path, csf_path ]
+image_col: [ gray_matter_path ]
+# image_col: [ gray_matter_path, white_matter_path, csf_path ]
 # image_col: [ misc ]
 label_col: label
 
@@ -27,13 +27,13 @@ data:
     # If one slice index is specified and one image_col is specified, the resulting slice is repeated and stacked so there are 3 channels.
     # Otherwise either three image-cols, or three slice_nums can be specified, leading to a three channel image.
     slice_num: [ 78, 88, 98 ]
-    max_workers: 0
-    valid_split: 0.1
-    test_split: 0.1
-    limit: 30
+    max_workers: 4
+    valid_split: 0.2
+    test_split: 0.2
+    limit: -1
     transforms:
-        pad_to_same: True,
-        nan_to_num: 0,
+        pad_to_same: True
+        nan_to_num: 0
         range_norm: True
 
 model:
@@ -44,22 +44,22 @@ model:
 pretrain:
     optim:
         name: adam
-        learn_rate: 0.0001
-        weight_decay: 0.00001
+        learn_rate: 0.001
+        weight_decay: 0.0001
         momentum: 0.9
-    num_epochs: 0
+    num_epochs: 10
     batch_size: 4
-    print_iter: 4
+    print_iter: 1
     sparsity: 0.0003
 
 train:
     optim:
-        name: sgd
+        name: adam
         learn_rate: 0.001
-        weight_decay: 0.0
+        weight_decay: 0.0001
         momentum: 0.9
-    num_epochs: 1
-    batch_size: 4
+    num_epochs: 60
+    batch_size: 8
     print_iter: 1
     save_model: True
     freeze_cnn: False
@@ -67,10 +67,11 @@ train:
     class_dropout: 0.0
 
 valid:
-    batch_size: 4
+    batch_size: 8
+
 
 test:
-    batch_size: 4
+    batch_size: 8
 
 
 remarks: Classification of skull-stripped images
