@@ -58,6 +58,11 @@ train:
         learn_rate: 0.001
         weight_decay: 0.0001
         momentum: 0.9
+        use_scheduler: True
+        # decay every n epochs
+        step_size: 10
+        # multiplicative factor applied to learning rate
+        decay_factor: 0.5
     num_epochs: 60
     batch_size: 8
     print_iter: 1

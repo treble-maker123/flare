@@ -5,6 +5,7 @@ import multiprocessing as mp
 from random import randint
 
 from torch.utils.data import DataLoader
+from torch.optim import lr_scheduler
 import torchvision.transforms as T
 
 from dataset import ADNIAutoEncDataset, ADNIClassDataset, ADNIAeCnnDataset
@@ -40,6 +41,9 @@ class Engine:
         self._setup_device(device)
         self.load_model(model_path)
         self._setup_data()
+
+        self.train_optim = None
+        self.train_scheduler = None
 
     def pretrain(self, epoch):
         device = self._device
@@ -140,21 +144,13 @@ class Engine:
             else:
                 model.freeze()
 
-        optim_params = {
-            "lr": config["train"]["optim"]["learn_rate"],
-            "weight_decay": config["train"]["optim"]["weight_decay"],
-            "momentum": config["train"]["optim"]["momentum"]
-        }
-        optim_name = config["train"]["optim"]["name"]
+        if self.train_optim is None:
+            self._setup_train_optimizer()
 
-        if optim_name == "adam":
-            del optim_params["momentum"]
-            optimizer = optim.Adam(model.parameters(), **optim_params)
-        elif optim_name == "sgd":
-            optimizer = optim.SGD(model.parameters(), **optim_params)
-        else:
-            raise Exception("Unrecognized optimizer {}, valid values are {}"
-                    .format(optim_name, self.OPTIMIZERS))
+        if self.train_scheduler is not None:
+            self.train_scheduler.step()
+            for param_group in self.train_optim.param_groups:
+                print(param_group['lr'])
 
         losses = []
         tally = {
@@ -169,7 +165,7 @@ class Engine:
             if len(x) < self._gpu_count * 2: # skip for BatchNorm1d
                 continue
 
-            optimizer.zero_grad()
+            self.train_optim.zero_grad()
 
             if randint(1, 100) <= 5:
                 temp_x = x.detach()
@@ -225,7 +221,7 @@ class Engine:
                     tally = self._add_to_tally(labels, correct, tally)
 
             loss.backward()
-            optimizer.step()
+            self.train_optim.step()
 
             losses.append(loss.item())
 
@@ -561,6 +557,33 @@ class Engine:
                 .format(len(self.train_dataset),
                         len(self.valid_dataset),
                         len(self.test_dataset)))
+
+    def _setup_train_optimizer(self):
+        optim_params = {
+            "lr": self._config["train"]["optim"]["learn_rate"],
+            "weight_decay": self._config["train"]["optim"]["weight_decay"],
+            "momentum": self._config["train"]["optim"]["momentum"]
+        }
+        optim_name = self._config["train"]["optim"]["name"]
+
+        use_scheduler = self._config["train"]["optim"]["use_scheduler"]
+        step_size = self._config["train"]["optim"]["step_size"]
+        decay_factor = self._config["train"]["optim"]["decay_factor"]
+
+        if optim_name == "adam":
+            del optim_params["momentum"]
+            optimizer = optim.Adam(self._model.parameters(), **optim_params)
+        elif optim_name == "sgd":
+            optimizer = optim.SGD(self._model.parameters(), **optim_params)
+        else:
+            raise Exception("Unrecognized optimizer {}, valid values are {}"
+                    .format(optim_name, self.OPTIMIZERS))
+
+        if use_scheduler is True:
+            self.train_scheduler = lr_scheduler.StepLR(optimizer,
+                                        step_size=step_size, gamma=decay_factor)
+
+        self.train_optim = optimizer
 
     def _add_to_tally(self, labels, gt, tally):
         ad = labels == "AD"
