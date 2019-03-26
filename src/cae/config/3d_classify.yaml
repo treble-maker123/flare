@@ -30,10 +30,10 @@ data:
     max_workers: 0
     valid_split: 0.1
     test_split: 0.1
-    limit: 30
+    limit: 20
     transforms:
-        pad_to_same: True,
-        nan_to_num: 0,
+        pad_to_same: True
+        nan_to_num: 0
         range_norm: True
 
 model:
@@ -44,22 +44,22 @@ model:
 pretrain:
     optim:
         name: adam
-        learn_rate: 0.0001
-        weight_decay: 0.00001
+        learn_rate: 0.001
+        weight_decay: 0.0001
         momentum: 0.9
-    num_epochs: 0
+    num_epochs: 20
     batch_size: 4
-    print_iter: 4
+    print_iter: 1
     sparsity: 0.0003
 
 train:
     optim:
-        name: sgd
+        name: adam
         learn_rate: 0.001
         weight_decay: 0.0
         momentum: 0.9
-    num_epochs: 1
-    batch_size: 4
+    num_epochs: 40
+    batch_size: 8
     print_iter: 1
     save_model: True
     freeze_cnn: False
@@ -67,10 +67,10 @@ train:
     class_dropout: 0.0
 
 valid:
-    batch_size: 4
+    batch_size: 8
 
 test:
-    batch_size: 4
+    batch_size: 8
 
 
 remarks: Classification of skull-stripped images

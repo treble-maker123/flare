@@ -100,7 +100,7 @@ class Engine:
                         o[img_idx, mid_idx, :, :].unsqueeze(0),
                         global_step=epoch, dataformats="CHW")
                     self.writer.add_image(
-                        "Reconstruction/Channel {}/Saggital View".format(idx+1),
+                        "Reconstruction/Channel {}/Sagital View".format(idx+1),
                         o[img_idx, :, mid_idx, :].unsqueeze(0), global_step=epoch, dataformats="CHW")
                     self.writer.add_image(
                         "Reconstruction/Channel {}/Axial View".format(idx+1),
@@ -195,7 +195,7 @@ class Engine:
                             inp[img_idx, :, :, mid_idx].unsqueeze(0),
                             global_step=epoch, dataformats="CHW")
                         self.writer.add_image(
-                            "Training Input/Channel {}/Saggital View"
+                            "Training Input/Channel {}/Sagital View"
                                 .format(idx+1),
                             inp[img_idx, :, mid_idx, :].unsqueeze(0),
                             global_step=epoch, dataformats="CHW")
@@ -525,24 +525,16 @@ class Engine:
             num_dim = config["data"]["num_dim"]
             slice_view = config["data"]["slice_view"]
             slice_num = config["data"]["slice_num"]
-            self.pretrain_dataset = NormalizedDataset(num_dim=num_dim,
-                                        slice_view=slice_view,
-                                        slice_num=slice_num,
+            self.pretrain_dataset = NormalizedDataset(
                                         **pretrain_dataset_params)
-            self.train_dataset = NormalizedDataset(num_dim=num_dim,
-                                        slice_view=slice_view,
-                                        slice_num=slice_num,
+            self.train_dataset = NormalizedDataset(
                                         **train_dataset_params)
             # Ensure the label and its encoded counter part match.
             label_encoder = self.train_dataset.label_encoder
-            self.valid_dataset = NormalizedDataset(num_dim=num_dim,
-                                        slice_view=slice_view,
-                                        slice_num=slice_num,
+            self.valid_dataset = NormalizedDataset(
                                         label_encoder=label_encoder,
                                         **valid_dataset_params)
-            self.test_dataset = NormalizedDataset(num_dim=2,
-                                        slice_view=slice_view,
-                                        slice_num=slice_num,
+            self.test_dataset = NormalizedDataset(
                                         label_encoder=label_encoder,
                                         **test_dataset_params)
         elif config["data"]["set_name"] == "2d":

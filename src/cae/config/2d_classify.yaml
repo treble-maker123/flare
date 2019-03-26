@@ -19,9 +19,9 @@ data:
     # can specify one or three slice indices
     # If one slice index is specified and one image_col is specified, the resulting slice is repeated and stacked so there are 3 channels.
     # Otherwise either three image-cols, or three slice_nums can be specified, leading to a three channel image.
-    slice_num: [ 88 ]
+    slice_num: [ 94 ]
     # only one slice is allowed if applying color map
-    apply_cmap: True
+    apply_cmap: False
     max_workers: 4
     valid_split: 0.2
     test_split: 0.2
@@ -53,7 +53,7 @@ train:
     optim:
         name: adam
         learn_rate: 0.001
-        weight_decay: 0.0001
+        weight_decay: 0.01
         momentum: 0.9
     num_epochs: 40
     batch_size: 16

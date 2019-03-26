@@ -1,11 +1,12 @@
 import os
 import yaml
+import torch
 import pickle
+import traceback
 import pandas as pd
 import numpy as np
 import nibabel as nib
 import torchvision.transforms as T
-import torch
 
 from pdb import set_trace
 from PIL import Image
@@ -21,27 +22,30 @@ class NormalizedDataset(Dataset):
     VALID_TASKS = ["pretrain", "classify"]
 
     def __init__(self, **kwargs):
-        # number of dimensions in the image, 2D vs 3D
-        self.num_dim = kwargs.get("num_dim", 3)
-        # if 2D, which view
-        self.slice_view = kwargs.get("slice_view", "coronal")
-        # the index at which to slice
-        self.slice_idx = kwargs.get("slice_num", [ 33 ])
-        if not isinstance(self.slice_idx, list):
-            raise Exception("Expected a list for slice_num, but instead got {}".format(self.slice_idx))
-        if not (len(self.slice_idx) == 1 or len(self.slice_idx) == 3):
-            raise Exception("Expected either 1 or three slices for slice_num, got {} instead.".format(len(self.slice_idx)))
-
         self.config = kwargs.get("config", {
             "image_col": [ "misc" ],
             "label_col": "label",
             "label_path": "outputs/normalized_mapping.pickle"
         })
+        # number of dimensions in the image, 2D vs 3D
+        self.num_dim = kwargs.get("num_dim", self.config["data"]["num_dim"])
+        # if 2D, which view
+        self.slice_view = kwargs.get("slice_view",
+                                      self.config["data"]["slice_view"])
+        # the index at which to slice
+        self.slice_idx = kwargs.get("slice_num",
+                                    self.config["data"]["slice_num"])
+        if not isinstance(self.slice_idx, list):
+            raise Exception("Expected a list for slice_num, but instead got {}".format(self.slice_idx))
+        if not (len(self.slice_idx) == 1 or len(self.slice_idx) == 3):
+            raise Exception("Expected either 1 or three slices for slice_num, got {} instead.".format(len(self.slice_idx)))
+
         # limit for the size of the dataset, for debugging purposes
         self.limit = kwargs.get("limit", -1)
         self.verbose = kwargs.get("verbose", self.config["verbose"])
 
-        self.apply_cmap = self.config["data"]["apply_cmap"]
+        if "apply_cmap" in self.config["data"]:
+            self.apply_cmap = self.config["data"]["apply_cmap"]
 
         transforms = kwargs.get("transforms", [
             T.ToTensor()
@@ -142,6 +146,7 @@ class NormalizedDataset(Dataset):
             except Exception as e:
                 print("Failed to load #{}: {}".format(idx, paths[idx]))
                 print("Errors encountered: {}".format(e))
+                print(traceback.format_exc())
                 return None
 
         if len(images) == 3:
@@ -287,32 +292,10 @@ class NormalizedDataset(Dataset):
         return df, encoder
 
 if __name__ == "__main__":
-    with open("config/2d_classify.yaml") as file:
-        config = yaml.load(file)
-    dataset = NormalizedDataset(
-        num_dim=2,
-        slice_view="coronal",
-        slice_num=[ 80 ],
-        mode="train",
-        task="classify",
-        valid_split=0.1,
-        test_split=0.1,
-        limit=-1,
-        config=config,
-        transforms=[
-            T.ToPILImage(),
-            T.Resize((224, 224)),
-            T.ToTensor(),
-            NaNToNum(),
-            RangeNormalization()
-        ]
-    )
-    image = dataset[0]
-
-    # with open("config/3d_classify.yaml") as file:
+    # with open("config/2d_classify.yaml") as file:
     #     config = yaml.load(file)
     # dataset = NormalizedDataset(
-    #     num_dim=3,
+    #     num_dim=2,
     #     slice_view="coronal",
     #     slice_num=[ 80 ],
     #     mode="train",
@@ -322,10 +305,32 @@ if __name__ == "__main__":
     #     limit=-1,
     #     config=config,
     #     transforms=[
+    #         T.ToPILImage(),
+    #         T.Resize((224, 224)),
     #         T.ToTensor(),
-    #         PadToSameDim(),
     #         NaNToNum(),
     #         RangeNormalization()
     #     ]
     # )
     # image = dataset[0]
+
+    with open("config/3d_classify.yaml") as file:
+        config = yaml.load(file)
+    dataset = NormalizedDataset(
+        num_dim=3,
+        slice_view="coronal",
+        slice_num=[ 80 ],
+        mode="train",
+        task="classify",
+        valid_split=0.1,
+        test_split=0.1,
+        limit=-1,
+        config=config,
+        transforms=[
+            T.ToTensor(),
+            PadToSameDim(),
+            NaNToNum(),
+            RangeNormalization()
+        ]
+    )
+    image = dataset[0]
