@@ -115,9 +115,11 @@ class Engine:
                 print("\tIteration {} ({}): {}"
                             .format(num_iter, y.detach(), loss.item()))
 
+        average_loss = 0 if len(losses) == 0 else (sum(losses) / len(losses))
+
         return {
             "loss_history": losses,
-            "average_loss": sum(losses) / len(losses)
+            "average_loss": average_loss
         }
 
     def train(self, epoch=0):
@@ -225,9 +227,11 @@ class Engine:
 
             losses.append(loss.item())
 
+        average_loss = 0 if len(losses) == 0 else (sum(losses) / len(losses))
+
         return {
             "loss_history": losses,
-            "average_loss": sum(losses) / len(losses)
+            "average_loss": average_loss
         }, tally
 
     def validate(self):
@@ -274,9 +278,11 @@ class Engine:
 
                 losses.append(loss.item())
 
+        average_loss = 0 if len(losses) == 0 else (sum(losses) / len(losses))
+
         return {
             "loss_history": losses,
-            "average_loss": sum(losses) / len(losses),
+            "average_loss": average_loss,
             "num_correct": num_correct,
             "num_total": num_total
         }, tally
@@ -324,15 +330,17 @@ class Engine:
 
                 losses.append(loss.item())
 
-        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
+        pct_correct = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2) if tally["Total"][1] != 0 else 0
         print("\tTest correct: AD {}/{}, CN {}/{}, MCI {}/{}, total {}/{}({}%)"
                 .format(tally["AD"][0], tally["AD"][1], tally["CN"][0],
                         tally["CN"][1], tally["MCI"][0], tally["MCI"][1],
                         tally["Total"][0], tally["Total"][1], pct_correct))
 
+        average_loss = 0 if len(losses) == 0 else (sum(losses) / len(losses))
+
         return {
             "loss_history": losses,
-            "average_loss": sum(losses) / len(losses),
+            "average_loss": average_loss,
             "num_correct": num_correct,
             "num_total": num_total
         }, tally
@@ -387,7 +395,7 @@ class Engine:
             self._model = Hosseini()
         elif model_class == "hosseini_three_layer":
             print("Using Three-Layer Hosseini model.")
-            self._model = HosseiniThreeLayer(num_channels=1)
+            self._model = HosseiniThreeLayer(num_channels=n_channels)
         elif model_class == "hosseini_simple":
             print("Using simple Hosseini model with two-layer autoencoder.")
             self._model = HosseiniSimple()

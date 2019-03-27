@@ -97,7 +97,7 @@ def main(config_path, run_id, tb_writer):
             "MCI Correct": tally["MCI"][0]
         }, epoch)
         train_history.append(train_result)
-        percent = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2)
+        percent = round((tally["Total"][0] * 100.0) / tally["Total"][1], 2) if tally["Total"][1] != 0 else 0
         tb_writer.add_scalar("training/Pct Correct", percent, epoch)
 
         logger.log("\tAverage training loss: {}"
@@ -142,7 +142,7 @@ def main(config_path, run_id, tb_writer):
         num_correct = valid_result["num_correct"]
         num_total = valid_result["num_total"]
 
-        percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+        percent = round(((num_correct * 1.0) / num_total) * 100, 2) if num_total != 0 else 0
         tb_writer.add_scalar("validation/Pct Correct", percent, epoch)
         tb_writer.add_scalars("misc/loss", {
             "Training": train_result["average_loss"],
@@ -198,7 +198,7 @@ def main(config_path, run_id, tb_writer):
             }, 0)
         num_correct = test_result["num_correct"]
         num_total = test_result["num_total"]
-        test_percent = round(((num_correct * 1.0) / num_total) * 100, 2)
+        test_percent = round(((num_correct * 1.0) / num_total) * 100, 2) if num_total != 0 else 0
         tb_writer.add_scalar("testing/Pct Correct", test_percent, 0)
         logger.log("Final test results: {}/{} ({}%)"
                     .format(num_correct,num_total,test_percent), epoch=epoch+1)

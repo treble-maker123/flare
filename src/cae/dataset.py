@@ -48,7 +48,7 @@ class ADNIAutoEncDataset(Dataset):
 
         self.limit = kwargs.get("limit", -1)
         # column name for the image paths
-        self.image_col = config["image_col"]
+        self.image_col = config["image_col"][0]
         # column name for the label paths
         self.label_col = config["label_col"]
 
@@ -307,7 +307,7 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         # Add a "channel" dimension
         postproc_img = postproc_img.unsqueeze(0)
 
-        return postproc_img, label
+        return postproc_img[:, 30:-30, 30:-30, 30:-30], label
 
     def _get_label(self, idx):
         '''

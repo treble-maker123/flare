@@ -26,6 +26,10 @@ class DeepAutoencMRI(nn.Module):
     Notes:
         - pre-training: 15-20 epochs leads to convergence,
         - training: 210 epochs?
+
+        - 7-layer network
+            - FreeSurfer: 2 image / GPU
+            - CLINICA: 5 image / GPU
     '''
     def __init__(self, **kwargs):
         super().__init__()
@@ -80,7 +84,10 @@ class DeepAutoencMRI(nn.Module):
         self.classification_dropout = nn.Dropout(class_dropout)
 
         classification_layers = [
+            # clinica
             nn.Linear(2*2*2*512, num_classes)
+            # freesurfer
+            # nn.Linear(4*4*4*512, num_classes)
         ]
 
         self.classify = nn.Sequential(*classification_layers)

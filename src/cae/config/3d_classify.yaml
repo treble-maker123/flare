@@ -7,20 +7,20 @@ verbose: False
 # image_col: postproc_path
 # label_col: label
 
-label_path: outputs/surfer_labels.pckl
-image_col: PROC_IMGPATH
-label_col: DX
+# label_path: outputs/surfer_labels.pckl
+# image_col: [ PROC_IMGPATH ]
+# label_col: DX
 
-# label_path: outputs/normalized_mapping.pickle
-# mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
+label_path: outputs/normalized_mapping.pickle
+mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
 # image_col: [ gray_matter_path ]
-# image_col: [ gray_matter_path, white_matter_path, csf_path ]
+image_col: [ gray_matter_path, white_matter_path, csf_path ]
 # image_col: [ misc ]
-# label_col: label
+label_col: label
 
 data:
-    # set_name: normalized
-    set_name: classify
+    set_name: normalized
+    # set_name: classify
     # 2D vs 3D
     num_dim: 3
     slice_view: coronal
@@ -38,10 +38,10 @@ data:
         range_norm: True
 
 model:
-    # class: deep_ae_mri
-    class: hosseini_three_layer
+    class: deep_ae_mri
+    # class: hosseini_three_layer
     # number of residual blocks per group
-    num_blocks: [1, 1, 1, 1, 1]
+    num_blocks: [1, 1, 1, 0, 0]
 
 pretrain:
     optim:
@@ -49,8 +49,8 @@ pretrain:
         learn_rate: 0.001
         weight_decay: 0.0001
         momentum: 0.9
-    num_epochs: 10
-    batch_size: 4
+    num_epochs: 0
+    batch_size: 2
     print_iter: 1
     sparsity: 0.0003
 
@@ -65,7 +65,7 @@ train:
         step_size: 10
         # multiplicative factor applied to learning rate
         decay_factor: 0.5
-    num_epochs: 60
+    num_epochs: 100
     batch_size: 4
     print_iter: 1
     save_model: True
@@ -79,6 +79,7 @@ valid:
 
 test:
     batch_size: 4
+
 
 
 remarks: Classification of skull-stripped images
