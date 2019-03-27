@@ -387,7 +387,7 @@ class Engine:
             self._model = Hosseini()
         elif model_class == "hosseini_three_layer":
             print("Using Three-Layer Hosseini model.")
-            self._model = HosseiniThreeLayer(num_channels=n_channels)
+            self._model = HosseiniThreeLayer(num_channels=1)
         elif model_class == "hosseini_simple":
             print("Using simple Hosseini model with two-layer autoencoder.")
             self._model = HosseiniSimple()
@@ -579,7 +579,7 @@ class Engine:
             raise Exception("Unrecognized optimizer {}, valid values are {}"
                     .format(optim_name, self.OPTIMIZERS))
 
-        if use_scheduler is True:
+        if use_scheduler:
             self.train_scheduler = lr_scheduler.StepLR(optimizer,
                                         step_size=step_size, gamma=decay_factor)
 
@@ -606,7 +606,7 @@ class Engine:
         config = self._config
 
         transforms = []
-        
+
         if config["data"]["num_dim"] == 2 and \
             not config["data"]["set_name"] == "presliced":
             transforms.append(T.ToPILImage("RGB"))

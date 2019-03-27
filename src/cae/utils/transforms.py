@@ -19,7 +19,7 @@ class PadPreprocImage(object):
     '''
     def __init__(self, target_size=256, num_dim=3):
         self.target_size = target_size
-        self.num_dim == num_dim
+        self.num_dim = num_dim
 
     def __call__(self, image):
         dim = tuple(image.shape)

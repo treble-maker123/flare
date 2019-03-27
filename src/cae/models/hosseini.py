@@ -101,13 +101,14 @@ class Hosseini(nn.Module):
 class HosseiniThreeLayer(nn.Module):
     '''
     Model similart o Hosseini but has a three-layer autoencoder, another convolution layer for classification, as well as more kernels
+
+    Batch size of 4 on 1 Tesla m40
     '''
     def __init__(self, **kwargs):
         super().__init__()
-
-        num_kernels = kwargs.get("num_kernels", [32, 64, 128, 192])
+        num_kernels = kwargs.get("num_kernels", [16, 32, 64, 128])
         num_classes = kwargs.get("num_classes", 3)
-        num_chan = kwargs.get("num_channels", 3)
+        num_chan = kwargs.get("num_channels", 1)
 
         self.encoder_layers = [
             # input 256x256x256, output 127x127x127
@@ -133,7 +134,7 @@ class HosseiniThreeLayer(nn.Module):
                                      max_pool=True, pool_stride=2, relu=True)
 
         classification_layers = [
-            nn.Linear(3*3*3*num_kernels[-1], 128),
+            nn.Linear(7*7*7*num_kernels[-1], 128),
             nn.ReLU(True),
             nn.Linear(128, 32),
             nn.ReLU(True),
@@ -143,44 +144,37 @@ class HosseiniThreeLayer(nn.Module):
         self.encode = nn.Sequential(*self.encoder_layers)
         self.classify = nn.Sequential(*classification_layers)
 
-    def forward(self, x):
-        hidden = self.encode(x)
-        hidden = self.conv(hidden).view(len(x), -1)
-        return self.classify(hidden)
-
-    def reconstruct(self, x):
+    def forward(self, x, reconstruct=False):
         hidden = self.encode(x)
 
-        # Conv layers from the encoder
-        conv1 = self.encoder_layers[0].block[0]
-        conv2 = self.encoder_layers[1].block[0]
-        conv3 = self.encoder_layers[2].block[0]
+        if reconstruct:
+            # Conv layers from the encoder
+            conv1 = self.encode[0].conv
+            conv2 = self.encode[1].conv
+            conv3 = self.encode[2].conv
 
-        # Tie the weights
-        # input 30x30x30, output 62x62x62
-        deconv2 = F.conv_transpose3d(hidden, conv3.weight.flip(0,1,3,2,4),
-                                     bias=conv2.bias, stride=2,
-                                     output_padding=1)
-        F.relu(deconv2, inplace=True)
-        # input 62x62x62, output 127x127x127
-        deconv3 = F.conv_transpose3d(deconv2, conv2.weight.flip(0,1,3,2,4),
-                                     bias=conv1.bias, stride=2,
-                                     output_padding=1)
-        padded_3 = F.pad(deconv3, (1, 0, 1, 0, 1, 0),
-                       mode="constant", value=0)
-        F.relu(padded_3, inplace=True)
-        # input 127x127x127, output 256x256x256
-        deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
-                                     stride=2, output_padding=1)
+            # Tie the weights
+            # input 30x30x30, output 62x62x62
+            deconv2 = F.conv_transpose3d(hidden, conv3.weight.flip(0,1,3,2,4),
+                                        stride=2, output_padding=1)
+            F.relu(deconv2, inplace=True)
+            # input 62x62x62, output 127x127x127
+            deconv3 = F.conv_transpose3d(deconv2, conv2.weight.flip(0,1,3,2,4),
+                                        stride=2, output_padding=1)
+            padded_3 = F.pad(deconv3, (1, 0, 1, 0, 1, 0),
+                        mode="constant", value=0)
+            F.relu(padded_3, inplace=True)
+            # input 127x127x127, output 256x256x256
+            deconv4 = F.conv_transpose3d(padded_3, conv1.weight.flip(0,1,3,2,4),
+                                        stride=2, output_padding=1)
 
-        # for 145x145x145 images
-        deconv4 = F.pad(deconv4, (1, 0, 1, 0, 1, 0),
-                       mode="constant", value=0)
-
-        return torch.sigmoid(deconv4)
+            return torch.sigmoid(deconv4), hidden
+        else:
+            output = self.conv(hidden).view(len(x), -1)
+            return self.classify(output)
 
     def loss(self, x, y):
-        return F.cross_entropy(x, y), None
+        return F.cross_entropy(x, y)
 
     def reconstruction_loss(self, x, y, hidden=None):
         loss = F.mse_loss(x, y)
@@ -376,31 +370,27 @@ class ConvolutionBlock(nn.Module):
             "stride": kwargs.get("conv_stride", 1),
             "padding": kwargs.get("padding", 0)
         }
-        batch_norm = kwargs.get("batch_norm", True)
-        max_pool = kwargs.get("max_pool", True)
+        self.batch_norm = kwargs.get("batch_norm", True)
+        self.max_pool = kwargs.get("max_pool", True)
         max_pool_kernel = kwargs.get("pool_kernel", 2)
         max_pool_stride = kwargs.get("pool_stride", 2)
-        relu = kwargs.get("relu", True)
+        self.relu = kwargs.get("relu", True)
 
-        layers = []
-
-        conv = nn.Conv3d(input_dim, output_dim, **conv_params)
-
-        layers.append(conv)
-
-        if max_pool:
-            layers.append(nn.MaxPool3d(max_pool_kernel, stride=max_pool_stride))
-
-        if relu:
-            layers.append(nn.ReLU(True))
-            nn.init.kaiming_normal_(conv.weight)
-        else:
-            nn.init.xavier_normal_(conv.weight)
-
-        if batch_norm:
-            layers.append(nn.BatchNorm3d(output_dim))
-
-        self.block = nn.Sequential(*layers)
+        self.conv = nn.Conv3d(input_dim, output_dim, **conv_params)
+        nn.init.kaiming_normal_(self.conv.weight)
+        self.mp = nn.MaxPool3d(max_pool_kernel, stride=max_pool_stride)
+        self.bn = nn.BatchNorm3d(output_dim)
 
     def forward(self, x):
-        return self.block(x)
+        output = self.conv(x)
+
+        if self.max_pool:
+            output = self.mp(output)
+
+        if self.relu:
+            output = F.relu(output)
+
+        if self.batch_norm:
+            output = self.bn(output)
+
+        return output

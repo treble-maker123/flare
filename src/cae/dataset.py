@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from utils.loader import invalid_collate
 from utils.transforms import OrientFSImage, PadPreprocImage, RangeNormalization, MeanStdNormalization
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils import shuffle
 
 from pdb import set_trace
 
@@ -254,9 +255,9 @@ class ADNIClassDataset(ADNIAutoEncDataset):
         # Split data
 
         # AD = 568, MCI = 1787, and CN = 959
-        self.ad = self.df[ self.df[self.label_col] == "AD" ]
-        self.mci = self.df[ self.df[self.label_col] == "MCI" ]
-        self.cn = self.df[ self.df[self.label_col] == "CN" ]
+        self.ad = shuffle(self.df[ self.df[self.label_col] == "AD" ])
+        self.mci = shuffle(self.df[ self.df[self.label_col] == "MCI" ])
+        self.cn = shuffle(self.df[ self.df[self.label_col] == "CN" ])
 
         if self.limit == -1:
             set_size = 550
