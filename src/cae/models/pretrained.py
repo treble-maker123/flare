@@ -14,6 +14,8 @@ class PretrainModel(nn.Module):
             self.net = models.resnet18(pretrained=pretrained)
         elif model_name == "vgg16":
             self.net = models.vgg16(pretrained=pretrained)
+        elif model_name == "densenet121":
+            self.net = models.densenet121(pretrained=pretrained)
         else:
             raise Exception("Model unsupported: {}".format(model_name))
 
@@ -21,7 +23,12 @@ class PretrainModel(nn.Module):
             for param in self.net.parameters():
                 param.requires_grad = False
 
-        self.net.fc = nn.Linear(512, 3)
+        if model_name == 'vgg16':
+    	    self.net.classifier[6]=nn.Linear(4096,3)
+        elif model_name == 'densenet121':
+            self.net.classifier = nn.Linear(1024,3)
+        else:
+            self.net.fc = nn.Linear(512, 3)
 
     def forward(self, x):
         return self.net(x)
