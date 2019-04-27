@@ -4,10 +4,10 @@ verbose: False
 # path to the label file, relative to the src/cae/ path.
 
 label_path: outputs/normalized_mapping.pickle
-mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
-# image_col: [ gray_matter_path ]
+# mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
+image_col: [ gray_matter_path ]
 # image_col: [ gray_matter_path, white_matter_path, csf_path ]
-image_col: [ misc ]
+# image_col: [ misc ]
 label_col: label
 
 data:
@@ -25,16 +25,16 @@ data:
     max_workers: 4
     valid_split: 0.2
     test_split: 0.2
-    limit: 20
+    limit: -1
     transforms:
         resize: 224
         range_norm: True
         mean_std_norm: False
 
 model:
-    class: densenet121
+    class: resnet18
     # for pretrained models only
-    pretrained: True
+    pretrained: False
     # number of residual blocks per group
     num_blocks: [1, 1, 1, 1, 1]
 

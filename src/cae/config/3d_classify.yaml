@@ -7,20 +7,22 @@ verbose: False
 # image_col: postproc_path
 # label_col: label
 
-# label_path: outputs/surfer_labels.pckl
-# image_col: [ PROC_IMGPATH ]
-# label_col: DX
+label_path: outputs/surfer_labels.pckl
+image_col: [ PROC_IMGPATH ]
+label_col: DX
 
 label_path: outputs/normalized_mapping.pickle
 mask_path: /mnt/nfs/work1/mfiterau/zguan/clinica_data/mask_ICV.nii
 # image_col: [ gray_matter_path ]
-image_col: [ gray_matter_path, white_matter_path, csf_path ]
-# image_col: [ misc ]
+# image_col: [ gray_matter_path, white_matter_path, csf_path ]
+image_col: [ misc ]
 label_col: label
 
 data:
-    set_name: normalized
-    # set_name: classify
+    # clinica
+    # set_name: normalized
+    # free surfer
+    set_name: classify
     # 2D vs 3D
     num_dim: 3
     slice_view: coronal

@@ -22,7 +22,6 @@ class DeepAutoencMRI(nn.Module):
                 |_ (SGD) 10 images per GPU with num_blocks [1,1,1,1,1]
                 |_ (ADAM) 8 images per GPU with num_blocks [1,1,1,1,1]
 
-
     Notes:
         - pre-training: 15-20 epochs leads to convergence,
         - training: 210 epochs?
@@ -85,9 +84,9 @@ class DeepAutoencMRI(nn.Module):
 
         classification_layers = [
             # clinica
-            nn.Linear(2*2*2*512, num_classes)
+            # nn.Linear(2*2*2*512, num_classes)
             # freesurfer
-            # nn.Linear(4*4*4*512, num_classes)
+            nn.Linear(4*4*4*512, num_classes)
         ]
 
         self.classify = nn.Sequential(*classification_layers)
